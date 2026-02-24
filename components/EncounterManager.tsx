@@ -5,18 +5,49 @@ import { useGame } from '@/contexts/GameContext';
 import { CharacterType } from '@/types/dnd';
 
 export default function EncounterManager() {
-  const { characters, encounters, createEncounter, startEncounter, deleteEncounter } = useGame();
+  const { characters, encounters, createEncounter, startEncounter, deleteEncounter, updateEncounter } = useGame();
   const [isCreating, setIsCreating] = useState(false);
+  const [editingEncounterId, setEditingEncounterId] = useState<string | null>(null);
   const [encounterName, setEncounterName] = useState('');
+  const [dmNotes, setDmNotes] = useState('');
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleCreate = () => {
     if (encounterName && selectedCharacterIds.length > 0) {
-      createEncounter(encounterName, selectedCharacterIds);
+      createEncounter(encounterName, selectedCharacterIds, dmNotes);
       setIsCreating(false);
       setEncounterName('');
+      setDmNotes('');
       setSelectedCharacterIds([]);
+    }
+  };
+
+  const handleEdit = (encounterId: string) => {
+    const encounter = encounters.find(e => e.id === encounterId);
+    if (encounter) {
+      setEditingEncounterId(encounterId);
+      setEncounterName(encounter.name);
+      setDmNotes(encounter.dmNotes || '');
+      setSelectedCharacterIds(encounter.participants.map(p => p.id));
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (editingEncounterId && encounterName && selectedCharacterIds.length > 0) {
+      const encounter = encounters.find(e => e.id === editingEncounterId);
+      if (encounter) {
+        // Update encounter name and notes
+        await updateEncounter(editingEncounterId, { name: encounterName, dmNotes });
+        
+        // TODO: Update participants (remove old, add new)
+        // For now, we'll need to add API endpoints to manage participants
+        
+        setEditingEncounterId(null);
+        setEncounterName('');
+        setDmNotes('');
+        setSelectedCharacterIds([]);
+      }
     }
   };
 
@@ -42,10 +73,12 @@ export default function EncounterManager() {
     }
   };
 
-  if (isCreating) {
+  if (isCreating || editingEncounterId) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Nouvelle Rencontre</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-6">
+          {editingEncounterId ? 'Modifier la Rencontre' : 'Nouvelle Rencontre'}
+        </h2>
         
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">Nom de la rencontre</label>
@@ -55,6 +88,17 @@ export default function EncounterManager() {
             onChange={(e) => setEncounterName(e.target.value)}
             placeholder="Entrez le nom..."
             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Notes de MJ</label>
+          <textarea
+            value={dmNotes}
+            onChange={(e) => setDmNotes(e.target.value)}
+            placeholder="Notes privées pour le MJ (stratégies, éléments à ne pas oublier, etc.)..."
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
         </div>
 
@@ -91,14 +135,20 @@ export default function EncounterManager() {
 
         <div className="flex gap-3">
           <button
-            onClick={handleCreate}
+            onClick={editingEncounterId ? handleUpdate : handleCreate}
             disabled={!encounterName || selectedCharacterIds.length === 0}
             className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
           >
-            Créer la rencontre
+            {editingEncounterId ? 'Mettre à jour' : 'Créer la rencontre'}
           </button>
           <button
-            onClick={() => setIsCreating(false)}
+            onClick={() => {
+              setIsCreating(false);
+              setEditingEncounterId(null);
+              setEncounterName('');
+              setDmNotes('');
+              setSelectedCharacterIds([]);
+            }}
             className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg font-medium transition-colors"
           >
             Annuler
@@ -150,26 +200,37 @@ export default function EncounterManager() {
                     </span>
                   )}
                   {!encounter.isActive && (
-                    <button
-                      onClick={() => {
-                        if (deletingId === encounter.id) {
-                          handleDelete(encounter.id);
-                        } else {
-                          setDeletingId(encounter.id);
-                          setTimeout(() => setDeletingId(null), 3000);
-                        }
-                      }}
-                      className={`p-1.5 rounded transition-colors ${
-                        deletingId === encounter.id
-                          ? 'bg-red-600 text-white hover:bg-red-700'
-                          : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                      }`}
-                      title={deletingId === encounter.id ? 'Cliquer à nouveau pour confirmer' : 'Supprimer'}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleEdit(encounter.id)}
+                        className="p-1.5 rounded transition-colors text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                        title="Modifier"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (deletingId === encounter.id) {
+                            handleDelete(encounter.id);
+                          } else {
+                            setDeletingId(encounter.id);
+                            setTimeout(() => setDeletingId(null), 3000);
+                          }
+                        }}
+                        className={`p-1.5 rounded transition-colors ${
+                          deletingId === encounter.id
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title={deletingId === encounter.id ? 'Cliquer à nouveau pour confirmer' : 'Supprimer'}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

@@ -216,6 +216,7 @@ export async function getEncounters(): Promise<Encounter[]> {
       currentRound: row.current_round,
       currentTurnIndex: row.current_turn_index,
       isActive: row.is_active === 1,
+      dmNotes: row.dm_notes || undefined,
       createdAt: new Date(row.created_at * 1000),
     });
   }
@@ -259,8 +260,8 @@ export async function createEncounter(encounter: Encounter): Promise<Encounter> 
   await db.execute({
     sql: `
       INSERT INTO encounters (
-        id, user_id, name, current_round, current_turn_index, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?)
+        id, user_id, name, current_round, current_turn_index, is_active, dm_notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       encounter.id,
@@ -269,6 +270,7 @@ export async function createEncounter(encounter: Encounter): Promise<Encounter> 
       encounter.currentRound,
       encounter.currentTurnIndex,
       encounter.isActive ? 1 : 0,
+      encounter.dmNotes || null,
     ],
   });
 
@@ -307,6 +309,10 @@ export async function updateEncounter(
   if (updates.isActive !== undefined) {
     fields.push('is_active = ?');
     args.push(updates.isActive ? 1 : 0);
+  }
+  if (updates.dmNotes !== undefined) {
+    fields.push('dm_notes = ?');
+    args.push(updates.dmNotes || null);
   }
 
   fields.push('updated_at = strftime(\'%s\', \'now\')');

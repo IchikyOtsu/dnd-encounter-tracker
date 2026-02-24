@@ -11,7 +11,8 @@ interface GameContextType {
   addCharacter: (character: Character) => Promise<void>;
   updateCharacter: (id: string, updates: Partial<Character>) => Promise<void>;
   deleteCharacter: (id: string) => Promise<void>;
-  createEncounter: (name: string, characterIds: string[]) => Promise<void>;
+  createEncounter: (name: string, characterIds: string[], dmNotes?: string) => Promise<void>;
+  updateEncounter: (encounterId: string, updates: Partial<Pick<Encounter, 'name' | 'dmNotes'>>) => Promise<void>;
   deleteEncounter: (encounterId: string) => Promise<void>;
   startEncounter: (encounterId: string) => Promise<void>;
   endEncounter: () => Promise<void>;
@@ -141,7 +142,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const createEncounter = async (name: string, characterIds: string[]) => {
+  const createEncounter = async (name: string, characterIds: string[], dmNotes?: string) => {
     try {
       const selectedChars = characters.filter(c => characterIds.includes(c.id));
       const participants: EncounterParticipant[] = selectedChars.map(char => ({
@@ -159,6 +160,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         currentRound: 1,
         currentTurnIndex: 0,
         isActive: false,
+        dmNotes: dmNotes || undefined,
       };
 
       const res = await fetch('/api/encounters', {
@@ -191,6 +193,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Error deleting encounter:', error);
+    }
+  };
+
+  const updateEncounter = async (encounterId: string, updates: Partial<Pick<Encounter, 'name' | 'dmNotes'>>) => {
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (res.ok) {
+        setEncounters(prev => prev.map(e => 
+          e.id === encounterId ? { ...e, ...updates } : e
+        ));
+        // Refresh data to get updated encounter
+        await refreshData();
+      }
+    } catch (error) {
+      console.error('Error updating encounter:', error);
     }
   };
 
@@ -548,6 +570,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     updateCharacter,
     deleteCharacter,
     createEncounter,
+    updateEncounter,
     deleteEncounter,
     startEncounter,
     endEncounter,

@@ -17,6 +17,7 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
   
   const [expandedTraits, setExpandedTraits] = useState<Set<number>>(new Set());
   const [expandedActions, setExpandedActions] = useState<Set<number>>(new Set());
+  const [expandedBonusActions, setExpandedBonusActions] = useState<Set<number>>(new Set());
   const [expandedLegendary, setExpandedLegendary] = useState<Set<number>>(new Set());
   const [expandedReactions, setExpandedReactions] = useState<Set<number>>(new Set());
 
@@ -267,6 +268,38 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
                 </div>
               </button>
               {expandedActions.has(index) && (
+                <div className="text-xs text-red-800 mt-1 px-2 py-1 bg-red-50 rounded">
+                  {action.description}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bonus Actions */}
+      {stats?.bonusActions && stats.bonusActions.length > 0 && (
+        <div className="border-t-2 border-red-900 pt-3 mb-4">
+          <h4 className="text-sm font-bold text-red-900 mb-2">Actions Bonus</h4>
+          {stats.bonusActions.map((action, index) => (
+            <div key={index} className="mb-2">
+              <button
+                onClick={() => toggleExpanded(expandedBonusActions, setExpandedBonusActions, index)}
+                className="w-full text-left hover:bg-red-50 rounded px-2 py-1 transition-colors"
+              >
+                <div className="text-xs flex items-center justify-between">
+                  <span className="font-bold text-red-900 italic">{action.name}</span>
+                  <svg
+                    className={`w-4 h-4 text-red-600 transition-transform ${expandedBonusActions.has(index) ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {expandedBonusActions.has(index) && (
                 <div className="text-xs text-red-800 mt-1 px-2 py-1 bg-red-50 rounded">
                   {action.description}
                 </div>

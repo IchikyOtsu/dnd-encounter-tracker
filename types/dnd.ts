@@ -62,6 +62,7 @@ export interface MonsterStats {
   skillBonuses?: Partial<Record<Skill, number>>; // Bonus manuels pour les compétences { 'Athlétisme': 5 }
   specialTraits?: Array<{ name: string; description: string }>; // Pack Tactics, etc.
   actions?: Array<{ name: string; description: string }>; // Multiattack, Bite, etc.
+  bonusActions?: Array<{ name: string; description: string }>; // Dash, Disengage, etc.
   legendaryActions?: Array<{ name: string; description: string }>;
   reactions?: Array<{ name: string; description: string }>;
 }
@@ -113,6 +114,7 @@ export interface Encounter {
   currentRound: number;
   currentTurnIndex: number;
   isActive: boolean;
+  dmNotes?: string;
   createdAt: Date;
 }
 
