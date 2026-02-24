@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { calculateModifier, COMMON_CONDITIONS } from '@/types/dnd';
 import ReactMarkdown from 'react-markdown';
+import { Rnd } from 'react-rnd';
 
 export default function InitiativeTracker() {
   const {
@@ -31,7 +32,9 @@ export default function InitiativeTracker() {
   const [selectedConditionId, setSelectedConditionId] = useState<string>('');
   const [conditionDuration, setConditionDuration] = useState<string>('');
   const [concentrationReminder, setConcentrationReminder] = useState<string | null>(null);
-  const [dmNotesExpanded, setDmNotesExpanded] = useState(true);
+  const [dmNotesExpanded, setDmNotesExpanded] = useState(false);
+  const [dmNotesPosition, setDmNotesPosition] = useState({ x: 16, y: 80 });
+  const [dmNotesSize, setDmNotesSize] = useState({ width: 320, height: 384 });
 
   if (!currentEncounter) {
     return (
@@ -156,30 +159,74 @@ export default function InitiativeTracker() {
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* Notes de MJ */}
       {currentEncounter.dmNotes && (
-        <div className={`fixed left-4 top-20 z-40 transition-all duration-300 ${dmNotesExpanded ? 'w-80' : 'w-12'}`}>
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-lg shadow-lg overflow-hidden">
-            <button
-              onClick={() => setDmNotesExpanded(!dmNotesExpanded)}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 flex items-center justify-between transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <Rnd
+          position={dmNotesPosition}
+          size={dmNotesExpanded ? dmNotesSize : { width: 48, height: 'auto' }}
+          onDragStop={(e, d) => setDmNotesPosition({ x: d.x, y: d.y })}
+          onResizeStop={(e, direction, ref, delta, position) => {
+            setDmNotesSize({
+              width: ref.offsetWidth,
+              height: ref.offsetHeight,
+            });
+            setDmNotesPosition(position);
+          }}
+          minWidth={dmNotesExpanded ? 250 : 48}
+          minHeight={dmNotesExpanded ? 150 : 'auto'}
+          maxWidth={800}
+          maxHeight={600}
+          bounds="window"
+          enableResizing={dmNotesExpanded ? {
+            top: true,
+            right: true,
+            bottom: true,
+            left: true,
+            topRight: true,
+            bottomRight: true,
+            bottomLeft: true,
+            topLeft: true,
+          } : false}
+          dragHandleClassName="drag-handle"
+          className="z-40"
+          style={{
+            position: 'fixed',
+          }}
+        >
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
+            {dmNotesExpanded ? (
+              <div className="w-full bg-amber-500 text-white px-3 py-2 flex items-center justify-between">
+                <div className="drag-handle flex items-center gap-2 flex-1 cursor-move">
+                  <svg className="w-4 h-4 text-amber-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                  </svg>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span className="font-semibold">Notes de MJ</span>
+                </div>
+                <button
+                  onClick={() => setDmNotesExpanded(false)}
+                  className="hover:bg-amber-600 p-1 rounded transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setDmNotesExpanded(true)}
+                className="drag-handle w-full bg-amber-500 hover:bg-amber-600 text-white p-2 flex flex-col items-center gap-1 cursor-move transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                {dmNotesExpanded && <span className="font-semibold">Notes de MJ</span>}
-              </div>
-              {dmNotesExpanded ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-              )}
-            </button>
+              </button>
+            )}
             {dmNotesExpanded && (
-              <div className="p-4 max-h-96 overflow-y-auto">
+              <div className="p-4 overflow-y-auto flex-1">
                 <div className="text-sm text-gray-700 prose prose-sm prose-amber max-w-none">
                   <ReactMarkdown
                     components={{
@@ -202,7 +249,7 @@ export default function InitiativeTracker() {
               </div>
             )}
           </div>
-        </div>
+        </Rnd>
       )}
 
       {/* Rappel de concentration */}
