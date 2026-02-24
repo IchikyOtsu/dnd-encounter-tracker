@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { calculateModifier, COMMON_CONDITIONS } from '@/types/dnd';
+import { calculateModifier, COMMON_CONDITIONS, getProficiencyFromCR, SKILL_ABILITY_MAP, Skill, Ability } from '@/types/dnd';
 import ReactMarkdown from 'react-markdown';
 import { Rnd } from 'react-rnd';
 
@@ -12,6 +12,7 @@ export default function InitiativeTracker() {
     endEncounter,
     endEncounterAndSave,
     nextTurn,
+    setTurn,
     updateParticipant,
     updateInitiativeAndSort,
     updateDeathSaves,
@@ -33,8 +34,9 @@ export default function InitiativeTracker() {
   const [conditionDuration, setConditionDuration] = useState<string>('');
   const [concentrationReminder, setConcentrationReminder] = useState<string | null>(null);
   const [dmNotesExpanded, setDmNotesExpanded] = useState(false);
-  const [dmNotesPosition, setDmNotesPosition] = useState({ x: 16, y: 80 });
+  const [dmNotesPosition, setDmNotesPosition] = useState({ x: 0, y: 80 });
   const [dmNotesSize, setDmNotesSize] = useState({ width: 320, height: 384 });
+  const [viewingCharacterId, setViewingCharacterId] = useState<string | null>(null);
 
   if (!currentEncounter) {
     return (
@@ -276,6 +278,209 @@ export default function InitiativeTracker() {
           </div>
         </div>
       )}
+
+      {/* Modal de visualisation de fiche */}
+      {viewingCharacterId && (() => {
+        const character = currentEncounter.participants.find(p => p.id === viewingCharacterId);
+        if (!character) return null;
+        
+        const stats = character.monsterStats;
+        const profBonus = stats?.challengeRating ? getProficiencyFromCR(stats.challengeRating) : character.proficiencyBonus || 2;
+        
+        const getSavingThrowBonus = (ability: Ability): string => {
+          const abilityMod = calculateModifier(character.abilities[ability]);
+          const isProficient = stats?.savingThrows?.[ability] || false;
+          const bonus = abilityMod + (isProficient ? profBonus : 0);
+          return `${bonus >= 0 ? '+' : ''}${bonus}`;
+        };
+
+        const getSkillBonus = (skill: Skill): string => {
+          if (stats?.skillBonuses?.[skill] !== undefined) {
+            const bonus = stats.skillBonuses[skill];
+            return `${bonus >= 0 ? '+' : ''}${bonus}`;
+          }
+          const ability = SKILL_ABILITY_MAP[skill];
+          const abilityMod = calculateModifier(character.abilities[ability]);
+          let profLevel = stats?.skills?.[skill] || 0;
+          if (typeof profLevel === 'boolean') {
+            profLevel = profLevel ? 1 : 0;
+          }
+          const bonus = abilityMod + (profBonus * profLevel);
+          return `${bonus >= 0 ? '+' : ''}${bonus}`;
+        };
+
+        const proficientSaves = stats?.savingThrows 
+          ? (Object.entries(stats.savingThrows) as [Ability, boolean][])
+              .filter(([_, isProficient]) => isProficient)
+              .map(([ability]) => `${ability} ${getSavingThrowBonus(ability)}`)
+          : [];
+
+        const proficientSkills = stats?.skills
+          ? (Object.entries(stats.skills) as [Skill, number | boolean][])
+              .filter(([_, value]) => {
+                if (typeof value === 'boolean') return value;
+                return value > 0;
+              })
+              .map(([skill, value]) => {
+                const bonus = getSkillBonus(skill);
+                const profLevel = typeof value === 'boolean' ? (value ? 1 : 0) : value;
+                const marker = profLevel === 2 ? ' ★' : '';
+                return `${skill}${marker} ${bonus}`;
+              })
+          : [];
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-lg border-2 border-red-200 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-red-600 text-white p-4 flex justify-between items-center z-10">
+                <h2 className="text-xl font-bold">{character.name}</h2>
+                <button
+                  onClick={() => setViewingCharacterId(null)}
+                  className="hover:bg-red-700 p-1 rounded transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-5">
+                {/* Header Info */}
+                <div className="border-b-2 border-red-900 pb-3 mb-4">
+                  {stats?.size && stats?.creatureType && (
+                    <p className="text-xs italic text-red-700 mb-2">
+                      {stats.size} {stats.creatureType}
+                      {stats.alignment && `, ${stats.alignment}`}
+                    </p>
+                  )}
+                  
+                  <div className="space-y-1 text-xs text-red-900">
+                    <div className="flex items-baseline">
+                      <span className="font-bold min-w-[120px]">Classe d'Armure</span>
+                      <span>{character.armorClass}</span>
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="font-bold min-w-[120px]">Points de Vie</span>
+                      <span className="font-semibold text-red-700">
+                        {character.hitPoints.current}/{character.hitPoints.max}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="font-bold min-w-[120px]">Vitesse</span>
+                      <span>{character.speed || 9} m</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ability Scores */}
+                <div className="border-b-2 border-red-900 pb-3 mb-4">
+                  <div className="grid grid-cols-6 gap-2 text-center">
+                    {Object.entries(character.abilities).map(([ability, score]) => (
+                      <div key={ability} className="bg-white border border-red-200 rounded p-1.5">
+                        <div className="text-xs font-bold text-red-900">{ability}</div>
+                        <div className="text-sm font-semibold text-red-700">{score}</div>
+                        <div className="text-xs text-red-600">
+                          ({calculateModifier(score) >= 0 ? '+' : ''}{calculateModifier(score)})
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Saving Throws & Skills */}
+                {(proficientSaves.length > 0 || proficientSkills.length > 0) && (
+                  <div className="border-b-2 border-red-900 pb-3 mb-4 text-xs">
+                    {proficientSaves.length > 0 && (
+                      <div className="mb-2">
+                        <span className="font-bold text-red-900">Jets de sauvegarde: </span>
+                        <span className="text-red-800">{proficientSaves.join(', ')}</span>
+                      </div>
+                    )}
+                    {proficientSkills.length > 0 && (
+                      <div>
+                        <span className="font-bold text-red-900">Compétences: </span>
+                        <span className="text-red-800">{proficientSkills.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Traits */}
+                {stats?.traits && stats.traits.length > 0 && (
+                  <div className="border-b-2 border-red-900 pb-3 mb-4">
+                    <h4 className="text-sm font-bold text-red-900 mb-2">Traits</h4>
+                    {stats.traits.map((trait, index) => (
+                      <div key={index} className="mb-2 text-xs">
+                        <span className="font-bold text-red-900 italic">{trait.name}. </span>
+                        <span className="text-red-800">{trait.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Actions */}
+                {stats?.actions && stats.actions.length > 0 && (
+                  <div className="border-b-2 border-red-900 pb-3 mb-4">
+                    <h4 className="text-sm font-bold text-red-900 mb-2">Actions</h4>
+                    {stats.actions.map((action, index) => (
+                      <div key={index} className="mb-2 text-xs">
+                        <span className="font-bold text-red-900 italic">{action.name}. </span>
+                        <span className="text-red-800">{action.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bonus Actions */}
+                {stats?.bonusActions && stats.bonusActions.length > 0 && (
+                  <div className="border-b-2 border-red-900 pb-3 mb-4">
+                    <h4 className="text-sm font-bold text-red-900 mb-2">Actions Bonus</h4>
+                    {stats.bonusActions.map((action, index) => (
+                      <div key={index} className="mb-2 text-xs">
+                        <span className="font-bold text-red-900 italic">{action.name}. </span>
+                        <span className="text-red-800">{action.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Legendary Actions */}
+                {stats?.legendaryActions && stats.legendaryActions.length > 0 && (
+                  <div className="border-b-2 border-red-900 pb-3 mb-4">
+                    <h4 className="text-sm font-bold text-red-900 mb-2">Actions Légendaires</h4>
+                    {stats.legendaryActions.map((action, index) => (
+                      <div key={index} className="mb-2 text-xs">
+                        <span className="font-bold text-red-900 italic">{action.name}. </span>
+                        <span className="text-red-800">{action.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Reactions */}
+                {stats?.reactions && stats.reactions.length > 0 && (
+                  <div className="border-b-2 border-red-900 pb-3 mb-4">
+                    <h4 className="text-sm font-bold text-red-900 mb-2">Réactions</h4>
+                    {stats.reactions.map((reaction, index) => (
+                      <div key={index} className="mb-2 text-xs">
+                        <span className="font-bold text-red-900 italic">{reaction.name}. </span>
+                        <span className="text-red-800">{reaction.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Notes */}
+                {character.notes && (
+                  <div className="pt-3">
+                    <p className="text-xs text-red-700 italic">{character.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal d'ajout de condition */}
       {showConditionModal && selectedParticipantForCondition && (
@@ -519,11 +724,35 @@ export default function InitiativeTracker() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="text-xl font-semibold text-gray-400 w-7">
-                      {index + 1}
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="text-xl font-semibold text-gray-400 w-7 text-center">
+                        {index + 1}
+                      </div>
+                      {!isCurrentTurn && (
+                        <button
+                          onClick={() => setTurn(index)}
+                          className="text-gray-400 hover:text-green-600 hover:bg-green-50 p-1 rounded transition-colors"
+                          title="Définir comme tour actif"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{participant.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{participant.name}</h3>
+                        <button
+                          onClick={() => setViewingCharacterId(participant.id)}
+                          className="text-blue-400 hover:text-blue-600 hover:bg-blue-50 p-1 rounded transition-colors"
+                          title="Voir la fiche"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                      </div>
                       <div className="text-xs text-gray-600 flex items-center gap-1.5 mt-0.5">
                         <span>{participant.type}</span>
                         {participant.class && <><span>•</span><span>{participant.class}</span></>}

@@ -18,12 +18,13 @@ interface GameContextType {
   endEncounter: () => Promise<void>;
   endEncounterAndSave: () => Promise<void>;
   nextTurn: () => Promise<void>;
+  setTurn: (turnIndex: number) => Promise<void>;
   updateParticipant: (participantId: string, updates: Partial<EncounterParticipant>) => Promise<void>;
-  updateInitiativeAndSort: (participantId: string, initiative: number) => void;
+  updateInitiativeAndSort: (participantId: string, initiative: number) => Promise<void>;
   updateDeathSaves: (participantId: string, type: 'success' | 'failure', value: number) => void;
   addParticipantToEncounter: (characterId: string) => void;
   removeParticipantFromEncounter: (participantId: string) => void;
-  rollInitiatives: () => void;
+  rollInitiatives: () => Promise<void>;
   sortInitiatives: () => void;
   refreshData: () => Promise<void>;
 }
@@ -219,7 +220,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startEncounter = async (encounterId: string) => {
     const encounter = encounters.find(e => e.id === encounterId);
     if (encounter) {
-      // Initialize participants without rolling initiative (set to 0)
+      // Si la rencontre est déjà active, garder les données existantes
+      if (encounter.isActive) {
+        setCurrentEncounter(encounter);
+        return;
+      }
+
+      // Sinon, initialiser une nouvelle rencontre
       const participantsWithInitiative = encounter.participants.map(p => ({
         ...p,
         initiative: 0,
@@ -463,7 +470,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const rollInitiatives = () => {
+  const rollInitiatives = async () => {
     if (!currentEncounter) return;
 
     const participantsWithInitiative = currentEncounter.participants.map(p => ({
@@ -483,6 +490,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setEncounters(prev =>
       prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
     );
+
+    // Sauvegarder toutes les initiatives dans la base de données
+    try {
+      await Promise.all(
+        participantsWithInitiative.map(participant =>
+          fetch(`/api/encounters/${currentEncounter.id}/participants/${participant.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initiative: participant.initiative }),
+          })
+        )
+      );
+
+      // Sauvegarder le tour actuel (reset à 0)
+      await fetch(`/api/encounters/${currentEncounter.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentTurnIndex: 0 }),
+      });
+    } catch (error) {
+      console.error('Error saving initiatives:', error);
+    }
   };
 
   const sortInitiatives = () => {
@@ -503,7 +532,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const updateInitiativeAndSort = (participantId: string, initiative: number) => {
+  const updateInitiativeAndSort = async (participantId: string, initiative: number) => {
     if (!currentEncounter) return;
 
     // Mettre à jour l'initiative du participant
@@ -523,8 +552,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setEncounters(prev =>
       prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
     );
-  };
 
+    // Sauvegarder dans la base de données
+    try {
+      await fetch(`/api/encounters/${currentEncounter.id}/participants/${participantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initiative }),
+      });
+    } catch (error) {
+      console.error('Error saving initiative:', error);
+    }
+  };
+  const setTurn = async (turnIndex: number) => {
+    if (!currentEncounter) return;
+
+    try {
+      await fetch(`/api/encounters/${currentEncounter.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentTurnIndex: turnIndex }),
+      });
+
+      const updatedEncounter = {
+        ...currentEncounter,
+        currentTurnIndex: turnIndex,
+      };
+
+      setCurrentEncounter(updatedEncounter);
+      setEncounters(prev =>
+        prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+      );
+    } catch (error) {
+      console.error('Error setting turn:', error);
+    }
+  };
   const updateDeathSaves = (participantId: string, type: 'success' | 'failure', value: number) => {
     if (!currentEncounter) return;
 
@@ -576,6 +638,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     endEncounter,
     endEncounterAndSave,
     nextTurn,
+    setTurn,
     updateParticipant,
     updateInitiativeAndSort,
     updateDeathSaves,
