@@ -16,6 +16,8 @@ interface GameContextType {
   endEncounter: () => void;
   nextTurn: () => void;
   updateParticipant: (participantId: string, updates: Partial<EncounterParticipant>) => void;
+  updateInitiativeAndSort: (participantId: string, initiative: number) => void;
+  updateDeathSaves: (participantId: string, type: 'success' | 'failure', value: number) => void;
   addParticipantToEncounter: (characterId: string) => void;
   removeParticipantFromEncounter: (participantId: string) => void;
   rollInitiatives: () => void;
@@ -29,6 +31,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [currentEncounter, setCurrentEncounter] = useState<Encounter | null>(null);
 
+  // Fonction pour normaliser les participants (ajouter les champs manquants)
+  const normalizeParticipant = (participant: any): EncounterParticipant => {
+    return {
+      ...participant,
+      deathSaves: participant.deathSaves || { successes: 0, failures: 0 },
+      isStable: participant.isStable ?? false,
+      isDead: participant.isDead ?? false,
+    };
+  };
+
   // Load data from localStorage on mount
   useEffect(() => {
     const savedCharacters = localStorage.getItem('dnd-characters');
@@ -39,10 +51,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setCharacters(JSON.parse(savedCharacters));
     }
     if (savedEncounters) {
-      setEncounters(JSON.parse(savedEncounters));
+      const loadedEncounters = JSON.parse(savedEncounters);
+      // Normaliser les participants dans chaque encounter
+      const normalizedEncounters = loadedEncounters.map((enc: Encounter) => ({
+        ...enc,
+        participants: enc.participants.map(normalizeParticipant),
+      }));
+      setEncounters(normalizedEncounters);
     }
     if (savedCurrentEncounter) {
-      setCurrentEncounter(JSON.parse(savedCurrentEncounter));
+      const loadedEncounter = JSON.parse(savedCurrentEncounter);
+      // Normaliser les participants
+      setCurrentEncounter({
+        ...loadedEncounter,
+        participants: loadedEncounter.participants.map(normalizeParticipant),
+      });
     }
   }, []);
 
@@ -91,6 +114,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ...char,
       initiative: 0,
       hasActed: false,
+      deathSaves: { successes: 0, failures: 0 },
+      isStable: false,
+      isDead: false,
     }));
 
     const newEncounter: Encounter = {
@@ -122,6 +148,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...p,
         initiative: 0, // Start with no initiative
         hasActed: false,
+        deathSaves: { successes: 0, failures: 0 },
+        isStable: false,
+        isDead: false,
       }));
 
       const activeEncounter: Encounter = {
@@ -200,6 +229,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ...character,
       initiative: rollInitiative(character.initiativeBonus),
       hasActed: false,
+      deathSaves: { successes: 0, failures: 0 },
+      isStable: false,
+      isDead: false,
     };
 
     const updatedParticipants = [...currentEncounter.participants, newParticipant];
@@ -274,6 +306,64 @@ export function GameProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const updateInitiativeAndSort = (participantId: string, initiative: number) => {
+    if (!currentEncounter) return;
+
+    // Mettre à jour l'initiative du participant
+    const updatedParticipants = currentEncounter.participants.map(p =>
+      p.id === participantId ? { ...p, initiative } : p
+    );
+
+    // Trier par initiative décroissante
+    updatedParticipants.sort((a, b) => b.initiative - a.initiative);
+
+    const updatedEncounter = {
+      ...currentEncounter,
+      participants: updatedParticipants,
+    };
+
+    setCurrentEncounter(updatedEncounter);
+    setEncounters(prev =>
+      prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+    );
+  };
+
+  const updateDeathSaves = (participantId: string, type: 'success' | 'failure', value: number) => {
+    if (!currentEncounter) return;
+
+    const participant = currentEncounter.participants.find(p => p.id === participantId);
+    if (!participant) return;
+
+    let newSuccesses = participant.deathSaves.successes;
+    let newFailures = participant.deathSaves.failures;
+    let newIsStable = participant.isStable;
+    let newIsDead = participant.isDead;
+
+    if (type === 'success') {
+      newSuccesses = Math.max(0, Math.min(3, value));
+      // Si 3 succès, devient stable
+      if (newSuccesses >= 3) {
+        newIsStable = true;
+        newSuccesses = 0;
+        newFailures = 0;
+      }
+    } else {
+      newFailures = Math.max(0, Math.min(3, value));
+      // Si 3 échecs, meurt
+      if (newFailures >= 3) {
+        newIsDead = true;
+        newSuccesses = 0;
+        newFailures = 0;
+      }
+    }
+
+    updateParticipant(participantId, {
+      deathSaves: { successes: newSuccesses, failures: newFailures },
+      isStable: newIsStable,
+      isDead: newIsDead,
+    });
+  };
+
   const value: GameContextType = {
     characters,
     encounters,
@@ -287,6 +377,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     endEncounter,
     nextTurn,
     updateParticipant,
+    updateInitiativeAndSort,
+    updateDeathSaves,
     addParticipantToEncounter,
     removeParticipantFromEncounter,
     rollInitiatives,

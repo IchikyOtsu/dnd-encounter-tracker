@@ -10,6 +10,8 @@ export default function InitiativeTracker() {
     endEncounter,
     nextTurn,
     updateParticipant,
+    updateInitiativeAndSort,
+    updateDeathSaves,
     addParticipantToEncounter,
     removeParticipantFromEncounter,
     rollInitiatives,
@@ -39,36 +41,48 @@ export default function InitiativeTracker() {
     const participant = currentEncounter.participants.find(p => p.id === participantId);
     if (!participant) return;
 
-    let newCurrent = participant.hitPoints.current + amount;
-    newCurrent = Math.max(0, Math.min(newCurrent, participant.hitPoints.max));
+    const rawNewCurrent = participant.hitPoints.current + amount;
+    
+    // Vérifier les dégâts massifs (mort instantanée)
+    // Si les dégâts font tomber à un négatif >= au maximum de HP, mort instantanée
+    const isMassiveDamage = amount < 0 && rawNewCurrent < 0 && Math.abs(rawNewCurrent) >= participant.hitPoints.max;
+    
+    let newCurrent = Math.max(0, Math.min(rawNewCurrent, participant.hitPoints.max));
 
-    updateParticipant(participantId, {
+    const updates: any = {
       hitPoints: {
         ...participant.hitPoints,
         current: newCurrent,
       },
-    });
+    };
+
+    // Dégâts massifs : mort instantanée
+    if (isMassiveDamage) {
+      updates.isDead = true;
+      updates.deathSaves = { successes: 0, failures: 0 };
+      updates.isStable = false;
+    }
+    // Guérison : réinitialiser les death saves et les états
+    else if ((participant.hitPoints.current === 0 && newCurrent > 0) || (participant.isDead && newCurrent > 0)) {
+      updates.deathSaves = { successes: 0, failures: 0 };
+      updates.isStable = false;
+      updates.isDead = false;
+    }
+
+    updateParticipant(participantId, updates);
   };
 
   const updateInitiative = (participantId: string, newInitiative: number) => {
-    updateParticipant(participantId, {
-      initiative: newInitiative,
-    });
+    updateInitiativeAndSort(participantId, newInitiative);
     setEditingInitiativeId(null);
-    // Tri automatique après mise à jour du state
-    setTimeout(() => sortInitiatives(), 100);
   };
 
   const rollSingleInitiative = (participantId: string) => {
     const participant = currentEncounter.participants.find(p => p.id === participantId);
-    if (!participant) return;
+    if (!participant || !currentEncounter) return;
     
     const roll = Math.floor(Math.random() * 20) + 1 + participant.initiativeBonus;
-    updateParticipant(participantId, {
-      initiative: roll,
-    });
-    // Tri automatique après mise à jour du state
-    setTimeout(() => sortInitiatives(), 100);
+    updateInitiativeAndSort(participantId, roll);
   };
 
   const addConditionToParticipant = (participantId: string, conditionId: string) => {
@@ -288,6 +302,21 @@ export default function InitiativeTracker() {
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-xs font-medium text-gray-700">Points de Vie</span>
+                      {participant.isDead && (
+                        <span className="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">
+                          ☠ MORT
+                        </span>
+                      )}
+                      {!participant.isDead && participant.isStable && participant.hitPoints.current === 0 && (
+                        <span className="text-xs font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">
+                          STABLE
+                        </span>
+                      )}
+                      {!participant.isDead && !participant.isStable && participant.hitPoints.current === 0 && (
+                        <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded">
+                          KO
+                        </span>
+                      )}
                     </div>
                     
                     <div>
@@ -310,6 +339,70 @@ export default function InitiativeTracker() {
                         )}
                         <span className="text-gray-500 font-normal"> / {participant.hitPoints.max}</span>
                       </div>
+
+                      {/* Death Saving Throws - Affiché quand HP = 0 */}
+                      {participant.hitPoints.current === 0 && !participant.isDead && (
+                        <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-2">
+                          <div className="text-xs font-bold text-red-900 mb-2 text-center">
+                            JETS DE SAUVEGARDE CONTRE LA MORT
+                          </div>
+                          <div className="space-y-2">
+                            {/* Succès */}
+                            <div>
+                              <div className="text-xs font-medium text-green-700 mb-1">Succès:</div>
+                              <div className="flex gap-2">
+                                {[1, 2, 3].map(i => (
+                                  <button
+                                    key={`success-${i}`}
+                                    onClick={() => {
+                                      const newValue = participant.deathSaves.successes === i ? i - 1 : i;
+                                      updateDeathSaves(participant.id, 'success', newValue);
+                                    }}
+                                    className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-all ${
+                                      participant.deathSaves.successes >= i
+                                        ? 'bg-green-500 border-green-700 text-white'
+                                        : 'bg-white border-green-500 hover:bg-green-100'
+                                    }`}
+                                    title={`Succès ${i}`}
+                                  >
+                                    {participant.deathSaves.successes >= i && '✓'}
+                                  </button>
+                                ))}
+                                <span className="text-xs text-gray-600 ml-2 self-center">
+                                  {participant.deathSaves.successes}/3
+                                </span>
+                              </div>
+                            </div>
+                            {/* Échecs */}
+                            <div>
+                              <div className="text-xs font-medium text-red-700 mb-1">Échecs:</div>
+                              <div className="flex gap-2">
+                                {[1, 2, 3].map(i => (
+                                  <button
+                                    key={`failure-${i}`}
+                                    onClick={() => {
+                                      const newValue = participant.deathSaves.failures === i ? i - 1 : i;
+                                      updateDeathSaves(participant.id, 'failure', newValue);
+                                    }}
+                                    className={`w-8 h-8 rounded border-2 flex items-center justify-center transition-all ${
+                                      participant.deathSaves.failures >= i
+                                        ? 'bg-red-600 border-red-800 text-white'
+                                        : 'bg-white border-red-500 hover:bg-red-100'
+                                    }`}
+                                    title={`Échec ${i}`}
+                                  >
+                                    {participant.deathSaves.failures >= i && '✗'}
+                                  </button>
+                                ))}
+                                <span className="text-xs text-gray-600 ml-2 self-center">
+                                  {participant.deathSaves.failures}/3
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex gap-1.5 items-center">
                         <button
                           onClick={() => applyHPChange(participant.id, -hpChange)}

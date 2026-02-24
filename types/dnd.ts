@@ -65,6 +65,12 @@ export interface Condition {
 export interface EncounterParticipant extends Character {
   initiative: number;
   hasActed?: boolean;
+  deathSaves: {
+    successes: number;
+    failures: number;
+  };
+  isStable: boolean;
+  isDead: boolean;
 }
 
 export interface Encounter {
