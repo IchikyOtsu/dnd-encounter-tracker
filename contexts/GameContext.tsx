@@ -7,22 +7,24 @@ interface GameContextType {
   characters: Character[];
   encounters: Encounter[];
   currentEncounter: Encounter | null;
-  addCharacter: (character: Character) => void;
-  updateCharacter: (id: string, updates: Partial<Character>) => void;
-  deleteCharacter: (id: string) => void;
-  createEncounter: (name: string, characterIds: string[]) => void;
-  deleteEncounter: (encounterId: string) => void;
+  isLoading: boolean;
+  addCharacter: (character: Character) => Promise<void>;
+  updateCharacter: (id: string, updates: Partial<Character>) => Promise<void>;
+  deleteCharacter: (id: string) => Promise<void>;
+  createEncounter: (name: string, characterIds: string[]) => Promise<void>;
+  deleteEncounter: (encounterId: string) => Promise<void>;
   startEncounter: (encounterId: string) => void;
-  endEncounter: () => void;
-  endEncounterAndSave: () => void;
-  nextTurn: () => void;
-  updateParticipant: (participantId: string, updates: Partial<EncounterParticipant>) => void;
+  endEncounter: () => Promise<void>;
+  endEncounterAndSave: () => Promise<void>;
+  nextTurn: () => Promise<void>;
+  updateParticipant: (participantId: string, updates: Partial<EncounterParticipant>) => Promise<void>;
   updateInitiativeAndSort: (participantId: string, initiative: number) => void;
   updateDeathSaves: (participantId: string, type: 'success' | 'failure', value: number) => void;
   addParticipantToEncounter: (characterId: string) => void;
   removeParticipantFromEncounter: (participantId: string) => void;
   rollInitiatives: () => void;
   sortInitiatives: () => void;
+  refreshData: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -31,6 +33,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [currentEncounter, setCurrentEncounter] = useState<Encounter | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fonction pour normaliser les participants (ajouter les champs manquants)
   const normalizeParticipant = (participant: any): EncounterParticipant => {
@@ -42,103 +45,147 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedCharacters = localStorage.getItem('dnd-characters');
-    const savedEncounters = localStorage.getItem('dnd-encounters');
-    const savedCurrentEncounter = localStorage.getItem('dnd-current-encounter');
+  // Charger les données depuis l'API au démarrage
+  const refreshData = async () => {
+    try {
+      setIsLoading(true);
+      const [charsRes, encountersRes] = await Promise.all([
+        fetch('/api/characters'),
+        fetch('/api/encounters'),
+      ]);
 
-    if (savedCharacters) {
-      setCharacters(JSON.parse(savedCharacters));
+      if (charsRes.ok) {
+        const charsData = await charsRes.json();
+        setCharacters(charsData);
+      }
+
+      if (encountersRes.ok) {
+        const encountersData = await encountersRes.json();
+        const normalizedEncounters = encountersData.map((enc: Encounter) => ({
+          ...enc,
+          participants: enc.participants.map(normalizeParticipant),
+        }));
+        setEncounters(normalizedEncounters);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
     }
-    if (savedEncounters) {
-      const loadedEncounters = JSON.parse(savedEncounters);
-      // Normaliser les participants dans chaque encounter
-      const normalizedEncounters = loadedEncounters.map((enc: Encounter) => ({
-        ...enc,
-        participants: enc.participants.map(normalizeParticipant),
-      }));
-      setEncounters(normalizedEncounters);
-    }
-    if (savedCurrentEncounter) {
-      const loadedEncounter = JSON.parse(savedCurrentEncounter);
-      // Normaliser les participants
-      setCurrentEncounter({
-        ...loadedEncounter,
-        participants: loadedEncounter.participants.map(normalizeParticipant),
-      });
-    }
+  };
+
+  useEffect(() => {
+    refreshData();
   }, []);
 
-  // Save to localStorage whenever data changes
-  useEffect(() => {
-    localStorage.setItem('dnd-characters', JSON.stringify(characters));
-  }, [characters]);
+  const addCharacter = async (character: Character) => {
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(character),
+      });
 
-  useEffect(() => {
-    localStorage.setItem('dnd-encounters', JSON.stringify(encounters));
-  }, [encounters]);
-
-  useEffect(() => {
-    if (currentEncounter) {
-      localStorage.setItem('dnd-current-encounter', JSON.stringify(currentEncounter));
-    } else {
-      localStorage.removeItem('dnd-current-encounter');
-    }
-  }, [currentEncounter]);
-
-  const addCharacter = (character: Character) => {
-    setCharacters(prev => [...prev, character]);
-  };
-
-  const updateCharacter = (id: string, updates: Partial<Character>) => {
-    setCharacters(prev =>
-      prev.map(char => (char.id === id ? { ...char, ...updates } : char))
-    );
-    
-    // Update in current encounter if present
-    if (currentEncounter) {
-      const updatedParticipants = currentEncounter.participants.map(p =>
-        p.id === id ? { ...p, ...updates } : p
-      );
-      setCurrentEncounter({ ...currentEncounter, participants: updatedParticipants });
+      if (res.ok) {
+        const newChar = await res.json();
+        setCharacters(prev => [...prev, newChar]);
+      }
+    } catch (error) {
+      console.error('Error adding character:', error);
     }
   };
 
-  const deleteCharacter = (id: string) => {
-    setCharacters(prev => prev.filter(char => char.id !== id));
-  };
+  const updateCharacter = async (id: string, updates: Partial<Character>) => {
+    try {
+      const res = await fetch(`/api/characters/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
 
-  const createEncounter = (name: string, characterIds: string[]) => {
-    const selectedChars = characters.filter(c => characterIds.includes(c.id));
-    const participants: EncounterParticipant[] = selectedChars.map(char => ({
-      ...char,
-      initiative: 0,
-      hasActed: false,
-      deathSaves: { successes: 0, failures: 0 },
-      isStable: false,
-      isDead: false,
-    }));
-
-    const newEncounter: Encounter = {
-      id: Date.now().toString(),
-      name,
-      participants,
-      currentRound: 1,
-      currentTurnIndex: 0,
-      isActive: false,
-      createdAt: new Date(),
-    };
-
-    setEncounters(prev => [...prev, newEncounter]);
-  };
-
-  const deleteEncounter = (encounterId: string) => {
-    // If we're deleting the current active encounter, end it first
-    if (currentEncounter && currentEncounter.id === encounterId) {
-      setCurrentEncounter(null);
+      if (res.ok) {
+        setCharacters(prev =>
+          prev.map(char => (char.id === id ? { ...char, ...updates } : char))
+        );
+        
+        // Update in current encounter if present
+        if (currentEncounter) {
+          const updatedParticipants = currentEncounter.participants.map(p =>
+            p.id === id ? { ...p, ...updates } : p
+          );
+          setCurrentEncounter({ ...currentEncounter, participants: updatedParticipants });
+        }
+      }
+    } catch (error) {
+      console.error('Error updating character:', error);
     }
-    setEncounters(prev => prev.filter(e => e.id !== encounterId));
+  };
+
+  const deleteCharacter = async (id: string) => {
+    try {
+      const res = await fetch(`/api/characters/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setCharacters(prev => prev.filter(char => char.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting character:', error);
+    }
+  };
+
+  const createEncounter = async (name: string, characterIds: string[]) => {
+    try {
+      const selectedChars = characters.filter(c => characterIds.includes(c.id));
+      const participants: EncounterParticipant[] = selectedChars.map(char => ({
+        ...char,
+        initiative: 0,
+        hasActed: false,
+        deathSaves: { successes: 0, failures: 0 },
+        isStable: false,
+        isDead: false,
+      }));
+
+      const encounterData = {
+        name,
+        participants,
+        currentRound: 1,
+        currentTurnIndex: 0,
+        isActive: false,
+      };
+
+      const res = await fetch('/api/encounters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(encounterData),
+      });
+
+      if (res.ok) {
+        const newEncounter = await res.json();
+        setEncounters(prev => [...prev, newEncounter]);
+      }
+    } catch (error) {
+      console.error('Error creating encounter:', error);
+    }
+  };
+
+  const deleteEncounter = async (encounterId: string) => {
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        // If we're deleting the current active encounter, end it first
+        if (currentEncounter && currentEncounter.id === encounterId) {
+          setCurrentEncounter(null);
+        }
+        setEncounters(prev => prev.filter(e => e.id !== encounterId));
+      }
+    } catch (error) {
+      console.error('Error deleting encounter:', error);
+    }
   };
 
   const startEncounter = (encounterId: string) => {
@@ -147,7 +194,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Initialize participants without rolling initiative (set to 0)
       const participantsWithInitiative = encounter.participants.map(p => ({
         ...p,
-        initiative: 0, // Start with no initiative
+        initiative: 0,
         hasActed: false,
         deathSaves: { successes: 0, failures: 0 },
         isStable: false,
@@ -169,45 +216,72 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const endEncounter = () => {
+  const endEncounter = async () => {
     if (currentEncounter) {
-      const updatedEncounter = { ...currentEncounter, isActive: false };
-      setEncounters(prev =>
-        prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
-      );
-      setCurrentEncounter(null);
+      try {
+        await fetch(`/api/encounters/${currentEncounter.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: false }),
+        });
+
+        const updatedEncounter = { ...currentEncounter, isActive: false };
+        setEncounters(prev =>
+          prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+        );
+        setCurrentEncounter(null);
+      } catch (error) {
+        console.error('Error ending encounter:', error);
+      }
     }
   };
 
-  const endEncounterAndSave = () => {
+  const endEncounterAndSave = async () => {
     if (currentEncounter) {
-      // Mettre à jour les PV de chaque personnage dans la liste principale
-      currentEncounter.participants.forEach(participant => {
-        const characterIndex = characters.findIndex(c => c.id === participant.id);
-        if (characterIndex !== -1) {
-          setCharacters(prev => {
-            const updated = [...prev];
-            updated[characterIndex] = {
-              ...updated[characterIndex],
-              hitPoints: {
-                ...participant.hitPoints,
-              },
-            };
-            return updated;
-          });
-        }
-      });
+      try {
+        // Mettre à jour les PV de chaque personnage dans la base de données
+        await Promise.all(
+          currentEncounter.participants.map(participant =>
+            fetch(`/api/characters/${participant.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                hitPoints: participant.hitPoints,
+              }),
+            })
+          )
+        );
 
-      // Fermer la rencontre
-      const updatedEncounter = { ...currentEncounter, isActive: false };
-      setEncounters(prev =>
-        prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
-      );
-      setCurrentEncounter(null);
+        // Mettre à jour l'état local
+        currentEncounter.participants.forEach(participant => {
+          setCharacters(prev =>
+            prev.map(c =>
+              c.id === participant.id
+                ? { ...c, hitPoints: participant.hitPoints }
+                : c
+            )
+          );
+        });
+
+        // Fermer la rencontre
+        await fetch(`/api/encounters/${currentEncounter.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: false }),
+        });
+
+        const updatedEncounter = { ...currentEncounter, isActive: false };
+        setEncounters(prev =>
+          prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+        );
+        setCurrentEncounter(null);
+      } catch (error) {
+        console.error('Error saving encounter:', error);
+      }
     }
   };
 
-  const nextTurn = () => {
+  const nextTurn = async () => {
     if (!currentEncounter) return;
 
     let nextIndex = currentEncounter.currentTurnIndex + 1;
@@ -218,34 +292,63 @@ export function GameProvider({ children }: { children: ReactNode }) {
       nextRound += 1;
     }
 
-    const updatedEncounter = {
-      ...currentEncounter,
-      currentTurnIndex: nextIndex,
-      currentRound: nextRound,
-    };
+    try {
+      await fetch(`/api/encounters/${currentEncounter.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentTurnIndex: nextIndex,
+          currentRound: nextRound,
+        }),
+      });
 
-    setCurrentEncounter(updatedEncounter);
-    setEncounters(prev =>
-      prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
-    );
+      const updatedEncounter = {
+        ...currentEncounter,
+        currentTurnIndex: nextIndex,
+        currentRound: nextRound,
+      };
+
+      setCurrentEncounter(updatedEncounter);
+      setEncounters(prev =>
+        prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+      );
+    } catch (error) {
+      console.error('Error advancing turn:', error);
+    }
   };
 
-  const updateParticipant = (participantId: string, updates: Partial<EncounterParticipant>) => {
+  const updateParticipant = async (
+    participantId: string,
+    updates: Partial<EncounterParticipant>
+  ) => {
     if (!currentEncounter) return;
 
-    const updatedParticipants = currentEncounter.participants.map(p =>
-      p.id === participantId ? { ...p, ...updates } : p
-    );
+    try {
+      await fetch(
+        `/api/encounters/${currentEncounter.id}/participants/${participantId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        }
+      );
 
-    const updatedEncounter = {
-      ...currentEncounter,
-      participants: updatedParticipants,
-    };
+      const updatedParticipants = currentEncounter.participants.map(p =>
+        p.id === participantId ? { ...p, ...updates } : p
+      );
 
-    setCurrentEncounter(updatedEncounter);
-    setEncounters(prev =>
-      prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
-    );
+      const updatedEncounter = {
+        ...currentEncounter,
+        participants: updatedParticipants,
+      };
+
+      setCurrentEncounter(updatedEncounter);
+      setEncounters(prev =>
+        prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+      );
+    } catch (error) {
+      console.error('Error updating participant:', error);
+    }
   };
 
   const addParticipantToEncounter = (characterId: string) => {
@@ -397,6 +500,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     characters,
     encounters,
     currentEncounter,
+    isLoading,
     addCharacter,
     updateCharacter,
     deleteCharacter,
@@ -413,6 +517,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     removeParticipantFromEncounter,
     rollInitiatives,
     sortInitiatives,
+    refreshData,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
