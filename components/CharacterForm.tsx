@@ -637,10 +637,292 @@ export default function CharacterForm({ editCharacter, onClose }: CharacterFormP
                 </div>
               </div>
 
-              <div className="text-xs text-gray-600 bg-blue-50 p-3 rounded">
-                <strong>Note:</strong> Pour ajouter des traits spéciaux, actions et réactions détaillés, utilisez le champ Notes ci-dessous.
-                Vous pouvez structurer vos informations avec des traits comme "Tactique de meute", "Attaque multiple", etc.
+              {/* Traits/Caractéristiques Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Caractéristiques Spéciales
+                  <span className="text-xs text-gray-500 ml-2">(Régénération, Vision dans le noir, etc.)</span>
+                </label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nom (ex: Régénération)"
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const input = e.currentTarget;
+                          const descInput = input.nextElementSibling as HTMLTextAreaElement;
+                          if (input.value && descInput?.value) {
+                            setFormData({
+                              ...formData,
+                              monsterTraits: [...formData.monsterTraits, { name: input.value, description: descInput.value }]
+                            });
+                            input.value = '';
+                            descInput.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <textarea
+                      placeholder="Description complète..."
+                      rows={1}
+                      className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey) {
+                          e.preventDefault();
+                          const descInput = e.currentTarget;
+                          const nameInput = descInput.previousElementSibling as HTMLInputElement;
+                          if (nameInput?.value && descInput.value) {
+                            setFormData({
+                              ...formData,
+                              monsterTraits: [...formData.monsterTraits, { name: nameInput.value, description: descInput.value }]
+                            });
+                            nameInput.value = '';
+                            descInput.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const btn = e.currentTarget;
+                        const container = btn.parentElement!;
+                        const nameInput = container.querySelector('input') as HTMLInputElement;
+                        const descInput = container.querySelector('textarea') as HTMLTextAreaElement;
+                        if (nameInput.value && descInput.value) {
+                          setFormData({
+                            ...formData,
+                            monsterTraits: [...formData.monsterTraits, { name: nameInput.value, description: descInput.value }]
+                          });
+                          nameInput.value = '';
+                          descInput.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                  {formData.monsterTraits.length > 0 && (
+                    <div className="space-y-1 mt-2">
+                      {formData.monsterTraits.map((trait, idx) => (
+                        <div key={idx} className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                          <div className="flex-1">
+                            <span className="font-semibold text-sm">{trait.name}:</span>
+                            <span className="text-sm text-gray-700 ml-1">{trait.description}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({
+                              ...formData,
+                              monsterTraits: formData.monsterTraits.filter((_, i) => i !== idx)
+                            })}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Actions Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Actions
+                  <span className="text-xs text-gray-500 ml-2">(Morsure, Attaque multiple, etc.)</span>
+                </label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nom (ex: Morsure)"
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <textarea
+                      placeholder="Description complète..."
+                      rows={1}
+                      className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const btn = e.currentTarget;
+                        const container = btn.parentElement!;
+                        const nameInput = container.querySelector('input') as HTMLInputElement;
+                        const descInput = container.querySelector('textarea') as HTMLTextAreaElement;
+                        if (nameInput.value && descInput.value) {
+                          setFormData({
+                            ...formData,
+                            monsterActions: [...formData.monsterActions, { name: nameInput.value, description: descInput.value }]
+                          });
+                          nameInput.value = '';
+                          descInput.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                  {formData.monsterActions.length > 0 && (
+                    <div className="space-y-1 mt-2">
+                      {formData.monsterActions.map((action, idx) => (
+                        <div key={idx} className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                          <div className="flex-1">
+                            <span className="font-semibold text-sm">{action.name}:</span>
+                            <span className="text-sm text-gray-700 ml-1">{action.description}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({
+                              ...formData,
+                              monsterActions: formData.monsterActions.filter((_, i) => i !== idx)
+                            })}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Legendary Actions Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Actions Légendaires
+                  <span className="text-xs text-gray-500 ml-2">(Optionnel)</span>
+                </label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nom"
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <textarea
+                      placeholder="Description complète..."
+                      rows={1}
+                      className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const btn = e.currentTarget;
+                        const container = btn.parentElement!;
+                        const nameInput = container.querySelector('input') as HTMLInputElement;
+                        const descInput = container.querySelector('textarea') as HTMLTextAreaElement;
+                        if (nameInput.value && descInput.value) {
+                          setFormData({
+                            ...formData,
+                            monsterLegendaryActions: [...formData.monsterLegendaryActions, { name: nameInput.value, description: descInput.value }]
+                          });
+                          nameInput.value = '';
+                          descInput.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                  {formData.monsterLegendaryActions.length > 0 && (
+                    <div className="space-y-1 mt-2">
+                      {formData.monsterLegendaryActions.map((action, idx) => (
+                        <div key={idx} className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                          <div className="flex-1">
+                            <span className="font-semibold text-sm">{action.name}:</span>
+                            <span className="text-sm text-gray-700 ml-1">{action.description}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({
+                              ...formData,
+                              monsterLegendaryActions: formData.monsterLegendaryActions.filter((_, i) => i !== idx)
+                            })}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Reactions Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Réactions
+                  <span className="text-xs text-gray-500 ml-2">(Optionnel)</span>
+                </label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nom (ex: Parade)"
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <textarea
+                      placeholder="Description complète..."
+                      rows={1}
+                      className="flex-[2] px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const btn = e.currentTarget;
+                        const container = btn.parentElement!;
+                        const nameInput = container.querySelector('input') as HTMLInputElement;
+                        const descInput = container.querySelector('textarea') as HTMLTextAreaElement;
+                        if (nameInput.value && descInput.value) {
+                          setFormData({
+                            ...formData,
+                            monsterReactions: [...formData.monsterReactions, { name: nameInput.value, description: descInput.value }]
+                          });
+                          nameInput.value = '';
+                          descInput.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                  {formData.monsterReactions.length > 0 && (
+                    <div className="space-y-1 mt-2">
+                      {formData.monsterReactions.map((reaction, idx) => (
+                        <div key={idx} className="flex items-start gap-2 p-2 bg-gray-50 rounded">
+                          <div className="flex-1">
+                            <span className="font-semibold text-sm">{reaction.name}:</span>
+                            <span className="text-sm text-gray-700 ml-1">{reaction.description}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData({
+                              ...formData,
+                              monsterReactions: formData.monsterReactions.filter((_, i) => i !== idx)
+                            })}
+                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
 
