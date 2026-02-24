@@ -11,6 +11,7 @@ interface GameContextType {
   updateCharacter: (id: string, updates: Partial<Character>) => void;
   deleteCharacter: (id: string) => void;
   createEncounter: (name: string, characterIds: string[]) => void;
+  deleteEncounter: (encounterId: string) => void;
   startEncounter: (encounterId: string) => void;
   endEncounter: () => void;
   nextTurn: () => void;
@@ -102,6 +103,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
 
     setEncounters(prev => [...prev, newEncounter]);
+  };
+
+  const deleteEncounter = (encounterId: string) => {
+    // If we're deleting the current active encounter, end it first
+    if (currentEncounter && currentEncounter.id === encounterId) {
+      setCurrentEncounter(null);
+    }
+    setEncounters(prev => prev.filter(e => e.id !== encounterId));
   };
 
   const startEncounter = (encounterId: string) => {
@@ -257,6 +266,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     updateCharacter,
     deleteCharacter,
     createEncounter,
+    deleteEncounter,
     startEncounter,
     endEncounter,
     nextTurn,
