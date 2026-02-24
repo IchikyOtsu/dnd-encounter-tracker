@@ -8,6 +8,7 @@ export default function InitiativeTracker() {
   const {
     currentEncounter,
     endEncounter,
+    endEncounterAndSave,
     nextTurn,
     updateParticipant,
     updateInitiativeAndSort,
@@ -23,6 +24,7 @@ export default function InitiativeTracker() {
   const [showAddCharacter, setShowAddCharacter] = useState(false);
   const [editingInitiativeId, setEditingInitiativeId] = useState<string | null>(null);
   const [tempInitiative, setTempInitiative] = useState<number>(0);
+  const [showEndModal, setShowEndModal] = useState(false);
 
   if (!currentEncounter) {
     return (
@@ -112,11 +114,71 @@ export default function InitiativeTracker() {
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Modal de confirmation de fin de rencontre */}
+      {showEndModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+              <h3 className="text-xl font-bold">Terminer la rencontre</h3>
+              <p className="text-sm opacity-90 mt-1">Choisissez comment clôturer cette rencontre</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <button
+                onClick={() => {
+                  endEncounterAndSave();
+                  setShowEndModal(false);
+                }}
+                className="w-full bg-green-500 hover:bg-green-600 text-white px-6 py-4 rounded-lg font-medium transition-colors text-left"
+              >
+                <div className="flex items-start gap-3">
+                  <svg className="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <div className="font-semibold text-base">Valider et sauvegarder</div>
+                    <div className="text-sm opacity-90 mt-1">
+                      Met à jour les PV de tous les personnages dans leurs fiches
+                    </div>
+                  </div>
+                </div>
+              </button>
+              
+              <button
+                onClick={() => {
+                  endEncounter();
+                  setShowEndModal(false);
+                }}
+                className="w-full bg-gray-500 hover:bg-gray-600 text-white px-6 py-4 rounded-lg font-medium transition-colors text-left"
+              >
+                <div className="flex items-start gap-3">
+                  <svg className="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <div>
+                    <div className="font-semibold text-base">Fermer sans sauvegarder</div>
+                    <div className="text-sm opacity-90 mt-1">
+                      Les PV des personnages ne seront pas modifiés
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowEndModal(false)}
+                className="w-full bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors border-2 border-gray-200"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-5">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-2xl font-semibold">{currentEncounter.name}</h2>
           <button
-            onClick={endEncounter}
+            onClick={() => setShowEndModal(true)}
             className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

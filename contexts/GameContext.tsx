@@ -14,6 +14,7 @@ interface GameContextType {
   deleteEncounter: (encounterId: string) => void;
   startEncounter: (encounterId: string) => void;
   endEncounter: () => void;
+  endEncounterAndSave: () => void;
   nextTurn: () => void;
   updateParticipant: (participantId: string, updates: Partial<EncounterParticipant>) => void;
   updateInitiativeAndSort: (participantId: string, initiative: number) => void;
@@ -170,6 +171,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const endEncounter = () => {
     if (currentEncounter) {
+      const updatedEncounter = { ...currentEncounter, isActive: false };
+      setEncounters(prev =>
+        prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+      );
+      setCurrentEncounter(null);
+    }
+  };
+
+  const endEncounterAndSave = () => {
+    if (currentEncounter) {
+      // Mettre à jour les PV de chaque personnage dans la liste principale
+      currentEncounter.participants.forEach(participant => {
+        const characterIndex = characters.findIndex(c => c.id === participant.id);
+        if (characterIndex !== -1) {
+          setCharacters(prev => {
+            const updated = [...prev];
+            updated[characterIndex] = {
+              ...updated[characterIndex],
+              hitPoints: {
+                ...participant.hitPoints,
+              },
+            };
+            return updated;
+          });
+        }
+      });
+
+      // Fermer la rencontre
       const updatedEncounter = { ...currentEncounter, isActive: false };
       setEncounters(prev =>
         prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
@@ -375,6 +404,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     deleteEncounter,
     startEncounter,
     endEncounter,
+    endEncounterAndSave,
     nextTurn,
     updateParticipant,
     updateInitiativeAndSort,
