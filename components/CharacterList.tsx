@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { Character, calculateModifier, COMMON_CONDITIONS } from '@/types/dnd';
 import { useGame } from '@/contexts/GameContext';
+import CharacterForm from './CharacterForm';
 
 export default function CharacterList() {
   const { characters, deleteCharacter, updateCharacter } = useGame();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editHP, setEditHP] = useState({ current: 0, max: 0, temporary: 0 });
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
 
   const handleHPEdit = (character: Character) => {
     setEditingId(character.id);
@@ -37,42 +39,67 @@ export default function CharacterList() {
   if (characters.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
-        <p className="text-lg">No characters yet. Add your first character to get started!</p>
+        <p className="text-lg">Aucun personnage. Ajoutez votre premier personnage pour commencer !</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <>
+      {editingCharacter && (
+        <CharacterForm 
+          editCharacter={editingCharacter} 
+          onClose={() => setEditingCharacter(null)}
+        />
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {characters.map((character) => (
         <div key={character.id} className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
           <div className="flex justify-between items-start mb-3">
             <div>
               <h3 className="text-xl font-bold">{character.name}</h3>
               <p className="text-sm text-gray-600">
-                {character.type} {character.level && `• Level ${character.level}`}
+                {character.type}
+                {character.class && ` • ${character.class}`}
+                {character.level && ` • Niv ${character.level}`}
               </p>
             </div>
-            <button
-              onClick={() => {
-                if (confirm(`Delete ${character.name}?`)) {
-                  deleteCharacter(character.id);
-                }
-              }}
-              className="text-red-500 hover:text-red-700"
-            >
-              ✕
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditingCharacter(character)}
+                className="text-blue-500 hover:text-blue-700"
+                title="Modifier"
+              >
+                ✏️
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Supprimer ${character.name} ?`)) {
+                    deleteCharacter(character.id);
+                  }
+                }}
+                className="text-red-500 hover:text-red-700"
+                title="Supprimer"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="bg-gray-100 p-2 rounded">
               <span className="text-xs text-gray-600">AC</span>
               <p className="text-lg font-bold">{character.armorClass}</p>
             </div>
             <div className="bg-gray-100 p-2 rounded">
-              <span className="text-xs text-gray-600">Speed</span>
-              <p className="text-lg font-bold">{character.speed} ft</p>
+              <span className="text-xs text-gray-600">Initiative</span>
+              <p className="text-lg font-bold">
+                {character.initiativeBonus >= 0 ? '+' : ''}{character.initiativeBonus}
+              </p>
+            </div>
+            <div className="bg-gray-100 p-2 rounded">
+              <span className="text-xs text-gray-600">Vitesse</span>
+              <p className="text-lg font-bold">{character.speed} m</p>
             </div>
           </div>
 
@@ -80,7 +107,7 @@ export default function CharacterList() {
             {editingId === character.id ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs">Current:</label>
+                  <label className="text-xs">Actuels:</label>
                   <input
                     type="number"
                     value={editHP.current}
@@ -111,13 +138,13 @@ export default function CharacterList() {
                     onClick={() => saveHP(character.id)}
                     className="flex-1 bg-green-500 text-white px-3 py-1 rounded text-sm"
                   >
-                    Save
+                    Sauvegarder
                   </button>
                   <button
                     onClick={() => setEditingId(null)}
                     className="flex-1 bg-gray-300 px-3 py-1 rounded text-sm"
                   >
-                    Cancel
+                    Annuler
                   </button>
                 </div>
               </div>
@@ -127,8 +154,8 @@ export default function CharacterList() {
                 className="bg-red-100 p-3 rounded cursor-pointer hover:bg-red-200"
               >
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-600">Hit Points</span>
-                  <span className="text-xs text-gray-500">Click to edit</span>
+                  <span className="text-xs text-gray-600">Points de Vie</span>
+                  <span className="text-xs text-gray-500">Cliquez pour modifier</span>
                 </div>
                 <p className="text-2xl font-bold text-red-700">
                   {character.hitPoints.current}
@@ -142,7 +169,7 @@ export default function CharacterList() {
           </div>
 
           <div className="mb-3">
-            <h4 className="text-xs font-semibold text-gray-700 mb-2">Ability Scores</h4>
+            <h4 className="text-xs font-semibold text-gray-700 mb-2">Caractéristiques</h4>
             <div className="grid grid-cols-6 gap-1">
               {Object.entries(character.abilities).map(([ability, score]) => (
                 <div key={ability} className="bg-gray-100 p-1 rounded text-center">
@@ -157,7 +184,7 @@ export default function CharacterList() {
           </div>
 
           <div className="mb-3">
-            <h4 className="text-xs font-semibold text-gray-700 mb-1">Conditions</h4>
+            <h4 className="text-xs font-semibold text-gray-700 mb-1">États</h4>
             <div className="flex flex-wrap gap-1 mb-2">
               {character.conditions.map((condition) => (
                 <span
@@ -184,7 +211,7 @@ export default function CharacterList() {
               }}
               className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
             >
-              <option value="">+ Add condition</option>
+              <option value="">+ Ajouter un état</option>
               {COMMON_CONDITIONS.filter(
                 c => !character.conditions.find(cc => cc.id === c.id)
               ).map((condition) => (
@@ -203,5 +230,6 @@ export default function CharacterList() {
         </div>
       ))}
     </div>
+    </>
   );
 }

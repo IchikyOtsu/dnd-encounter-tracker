@@ -61,7 +61,10 @@ export default function EncounterManager() {
                 <div>
                   <div className="font-medium">{character.name}</div>
                   <div className="text-sm text-gray-600">
-                    {character.type} • AC {character.armorClass} • HP {character.hitPoints.max}
+                    {character.type}
+                    {character.class && ` • ${character.class}`}
+                    {character.level && ` Niv ${character.level}`}
+                    {' • '}CA {character.armorClass} • PV {character.hitPoints.max}
                   </div>
                 </div>
               </label>

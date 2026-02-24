@@ -1,5 +1,11 @@
 export type CharacterType = 'PC' | 'NPC' | 'Monster';
 
+export type CharacterClass = 
+  | 'Artificier' | 'Barbare' | 'Barde' | 'Chasseur de Sang'
+  | 'Clerc' | 'Druide' | 'Ensorceleur' | 'Guerrier'
+  | 'Magicien' | 'Moine' | 'Occultiste' | 'Paladin'
+  | 'Rôdeur' | 'Roublard' | 'Aucune';
+
 export type Ability = 'STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA';
 
 export interface AbilityScores {
@@ -15,6 +21,7 @@ export interface Character {
   id: string;
   name: string;
   type: CharacterType;
+  class?: CharacterClass;
   level?: number;
   armorClass: number;
   hitPoints: {

@@ -166,9 +166,14 @@ export default function InitiativeTracker() {
                     <div>
                       <h3 className="text-xl font-bold">{participant.name}</h3>
                       <div className="text-sm text-gray-600">
+                        {participant.type}
+                        {participant.class && ` • ${participant.class}`}
+                        {participant.level && ` Niv ${participant.level}`}
+                      </div>
+                      <div className="text-sm text-gray-600">
                         Initiative: <span className="font-bold">{participant.initiative}</span>
-                        {' • '}AC: {participant.armorClass}
-                        {participant.speed && ` • Speed: ${participant.speed} ft`}
+                        {' • '}CA: {participant.armorClass}
+                        {participant.speed && ` • Vitesse: ${participant.speed} m`}
                       </div>
                     </div>
                   </div>

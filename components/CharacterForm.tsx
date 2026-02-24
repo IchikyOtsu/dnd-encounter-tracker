@@ -1,16 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { Character, CharacterType, AbilityScores, calculateModifier } from '@/types/dnd';
+import { useState, useEffect } from 'react';
+import { Character, CharacterType, CharacterClass, AbilityScores, calculateModifier } from '@/types/dnd';
 import { useGame } from '@/contexts/GameContext';
 
-export default function CharacterForm() {
-  const { addCharacter } = useGame();
-  const [isOpen, setIsOpen] = useState(false);
+interface CharacterFormProps {
+  editCharacter?: Character;
+  onClose?: () => void;
+}
+
+export default function CharacterForm({ editCharacter, onClose }: CharacterFormProps = {}) {
+  const { addCharacter, updateCharacter } = useGame();
+  const [isOpen, setIsOpen] = useState(!!editCharacter);
   
   const [formData, setFormData] = useState({
     name: '',
     type: 'PC' as CharacterType,
+    class: 'Aucune' as CharacterClass,
     level: 1,
     armorClass: 10,
     maxHP: 10,
@@ -22,10 +28,38 @@ export default function CharacterForm() {
     INT: 10,
     WIS: 10,
     CHA: 10,
-    speed: 30,
+    speed: 9,
     proficiencyBonus: 2,
+    initiativeBonus: null as number | null,
     notes: '',
   });
+
+  // Load character data if editing
+  useEffect(() => {
+    if (editCharacter) {
+      setFormData({
+        name: editCharacter.name,
+        type: editCharacter.type,
+        class: editCharacter.class || 'Aucune',
+        level: editCharacter.level || 1,
+        armorClass: editCharacter.armorClass,
+        maxHP: editCharacter.hitPoints.max,
+        currentHP: editCharacter.hitPoints.current,
+        temporaryHP: editCharacter.hitPoints.temporary,
+        STR: editCharacter.abilities.STR,
+        DEX: editCharacter.abilities.DEX,
+        CON: editCharacter.abilities.CON,
+        INT: editCharacter.abilities.INT,
+        WIS: editCharacter.abilities.WIS,
+        CHA: editCharacter.abilities.CHA,
+        speed: editCharacter.speed || 9,
+        proficiencyBonus: editCharacter.proficiencyBonus || 2,
+        initiativeBonus: editCharacter.initiativeBonus === calculateModifier(editCharacter.abilities.DEX) ? null : editCharacter.initiativeBonus,
+        notes: editCharacter.notes || '',
+      });
+      setIsOpen(true);
+    }
+  }, [editCharacter]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,12 +73,10 @@ export default function CharacterForm() {
       CHA: formData.CHA,
     };
 
-    const initiativeBonus = calculateModifier(formData.DEX);
-
-    const character: Character = {
-      id: Date.now().toString(),
+    const characterData = {
       name: formData.name,
       type: formData.type,
+      class: formData.class !== 'Aucune' ? formData.class : undefined,
       level: formData.level,
       armorClass: formData.armorClass,
       hitPoints: {
@@ -53,20 +85,38 @@ export default function CharacterForm() {
         temporary: formData.temporaryHP,
       },
       abilities,
-      initiativeBonus,
+      initiativeBonus: formData.initiativeBonus !== null ? formData.initiativeBonus : calculateModifier(formData.DEX),
       proficiencyBonus: formData.proficiencyBonus,
       speed: formData.speed,
-      conditions: [],
       notes: formData.notes,
     };
 
-    addCharacter(character);
+    if (editCharacter) {
+      // Update existing character
+      updateCharacter(editCharacter.id, characterData);
+      if (onClose) onClose();
+    } else {
+      // Add new character
+      const character: Character = {
+        id: Date.now().toString(),
+        ...characterData,
+        conditions: [],
+      };
+      addCharacter(character);
+    }
+    
+    handleClose();
+  };
+
+  const handleClose = () => {
     setIsOpen(false);
+    if (onClose) onClose();
     
     // Reset form
     setFormData({
       name: '',
       type: 'PC',
+      class: 'Aucune',
       level: 1,
       armorClass: 10,
       maxHP: 10,
@@ -78,27 +128,32 @@ export default function CharacterForm() {
       INT: 10,
       WIS: 10,
       CHA: 10,
-      speed: 30,
+      speed: 9,
       proficiencyBonus: 2,
+      initiativeBonus: null,
       notes: '',
     });
   };
 
-  if (!isOpen) {
+  if (!isOpen && !editCharacter) {
     return (
       <button
         onClick={() => setIsOpen(true)}
         className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
       >
-        + Add Character
+        + Ajouter un Personnage
       </button>
     );
   }
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4">Add New Character</h2>
+        <h2 className="text-2xl font-bold mb-4">
+          {editCharacter ? 'Modifier le Personnage' : 'Ajouter un Personnage'}
+        </h2>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -123,6 +178,31 @@ export default function CharacterForm() {
                 <option value="PC">Player Character (PC)</option>
                 <option value="NPC">Non-Player Character (NPC)</option>
                 <option value="Monster">Monster</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Classe</label>
+              <select
+                value={formData.class}
+                onChange={(e) => setFormData({ ...formData, class: e.target.value as CharacterClass })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              >
+                <option value="Aucune">Aucune classe</option>
+                <option value="Artificier">Artificier</option>
+                <option value="Barbare">Barbare</option>
+                <option value="Barde">Barde</option>
+                <option value="Chasseur de Sang">Chasseur de Sang</option>
+                <option value="Clerc">Clerc</option>
+                <option value="Druide">Druide</option>
+                <option value="Ensorceleur">Ensorceleur</option>
+                <option value="Guerrier">Guerrier</option>
+                <option value="Magicien">Magicien</option>
+                <option value="Moine">Moine</option>
+                <option value="Occultiste">Occultiste</option>
+                <option value="Paladin">Paladin</option>
+                <option value="Rôdeur">Rôdeur</option>
+                <option value="Roublard">Roublard</option>
               </select>
             </div>
 
@@ -165,19 +245,39 @@ export default function CharacterForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Speed (ft)</label>
+              <label className="block text-sm font-medium mb-1">Vitesse (m)</label>
               <input
                 type="number"
                 min="0"
+                step="1.5"
                 value={formData.speed}
-                onChange={(e) => setFormData({ ...formData, speed: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, speed: parseFloat(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Bonus d'Initiative
+                <span className="text-xs text-gray-500 ml-1">
+                  (Auto: {calculateModifier(formData.DEX) >= 0 ? '+' : ''}{calculateModifier(formData.DEX)})
+                </span>
+              </label>
+              <input
+                type="number"
+                value={formData.initiativeBonus === null ? '' : formData.initiativeBonus}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({ ...formData, initiativeBonus: val === '' ? null : parseInt(val) });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                placeholder={`Auto: ${calculateModifier(formData.DEX) >= 0 ? '+' : ''}${calculateModifier(formData.DEX)}`}
               />
             </div>
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold mb-2">Ability Scores</h3>
+            <h3 className="text-lg font-semibold mb-2">Caractéristiques</h3>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               {(['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const).map((ability) => (
                 <div key={ability}>
@@ -216,14 +316,14 @@ export default function CharacterForm() {
               type="submit"
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold"
             >
-              Add Character
+              {editCharacter ? 'Sauvegarder' : 'Ajouter'}
             </button>
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={handleClose}
               className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-3 rounded-lg font-semibold"
             >
-              Cancel
+              Annuler
             </button>
           </div>
         </form>
