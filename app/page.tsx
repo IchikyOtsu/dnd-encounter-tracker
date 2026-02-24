@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Header from '@/components/Header';
 
 export default function Home() {
   const tools = [
@@ -86,8 +87,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
+      <Header />
+
+      {/* Hero Section */}
+      <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="container mx-auto px-6 py-8">
           <div className="text-center">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -98,7 +101,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-12">
