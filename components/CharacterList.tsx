@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { Character, CharacterType, calculateModifier, COMMON_CONDITIONS } from '@/types/dnd';
 import { useGame } from '@/contexts/GameContext';
 import CharacterForm from './CharacterForm';
+import MonsterCard from './MonsterCard';
 
 type SortOption = 'name' | 'level' | 'type';
 
@@ -170,7 +171,25 @@ export default function CharacterList() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {filteredAndSortedCharacters.map((character) => (
+      {filteredAndSortedCharacters.map((character) => {
+        // Use MonsterCard for monsters
+        if (character.type === 'Monster') {
+          return (
+            <MonsterCard
+              key={character.id}
+              monster={character}
+              onEdit={() => setEditingCharacter(character)}
+              onDelete={() => {
+                if (confirm(`Supprimer ${character.name} ?`)) {
+                  deleteCharacter(character.id);
+                }
+              }}
+            />
+          );
+        }
+
+        // Regular card for PC/NPC
+        return (
         <div key={character.id} className="bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-all p-5">
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
@@ -362,7 +381,8 @@ export default function CharacterList() {
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
     </>
   );

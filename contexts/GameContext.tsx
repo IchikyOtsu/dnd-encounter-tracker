@@ -19,6 +19,7 @@ interface GameContextType {
   addParticipantToEncounter: (characterId: string) => void;
   removeParticipantFromEncounter: (participantId: string) => void;
   rollInitiatives: () => void;
+  sortInitiatives: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -116,15 +117,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startEncounter = (encounterId: string) => {
     const encounter = encounters.find(e => e.id === encounterId);
     if (encounter) {
-      // Roll initiatives
+      // Initialize participants without rolling initiative (set to 0)
       const participantsWithInitiative = encounter.participants.map(p => ({
         ...p,
-        initiative: rollInitiative(p.initiativeBonus),
+        initiative: 0, // Start with no initiative
         hasActed: false,
       }));
-
-      // Sort by initiative (highest first)
-      participantsWithInitiative.sort((a, b) => b.initiative - a.initiative);
 
       const activeEncounter: Encounter = {
         ...encounter,
@@ -258,6 +256,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const sortInitiatives = () => {
+    if (!currentEncounter) return;
+
+    const sortedParticipants = [...currentEncounter.participants].sort(
+      (a, b) => b.initiative - a.initiative
+    );
+
+    const updatedEncounter = {
+      ...currentEncounter,
+      participants: sortedParticipants,
+    };
+
+    setCurrentEncounter(updatedEncounter);
+    setEncounters(prev =>
+      prev.map(e => (e.id === currentEncounter.id ? updatedEncounter : e))
+    );
+  };
+
   const value: GameContextType = {
     characters,
     encounters,
@@ -274,6 +290,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     addParticipantToEncounter,
     removeParticipantFromEncounter,
     rollInitiatives,
+    sortInitiatives,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

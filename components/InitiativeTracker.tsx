@@ -13,12 +13,14 @@ export default function InitiativeTracker() {
     addParticipantToEncounter,
     removeParticipantFromEncounter,
     rollInitiatives,
+    sortInitiatives,
     characters,
   } = useGame();
 
-  const [editingHPId, setEditingHPId] = useState<string | null>(null);
-  const [hpChange, setHpChange] = useState<number>(0);
+  const [hpChange, setHpChange] = useState<number>(1);
   const [showAddCharacter, setShowAddCharacter] = useState(false);
+  const [editingInitiativeId, setEditingInitiativeId] = useState<string | null>(null);
+  const [tempInitiative, setTempInitiative] = useState<number>(0);
 
   if (!currentEncounter) {
     return (
@@ -33,11 +35,11 @@ export default function InitiativeTracker() {
 
   const currentParticipant = currentEncounter.participants[currentEncounter.currentTurnIndex];
 
-  const applyHPChange = (participantId: string) => {
+  const applyHPChange = (participantId: string, amount: number) => {
     const participant = currentEncounter.participants.find(p => p.id === participantId);
     if (!participant) return;
 
-    let newCurrent = participant.hitPoints.current + hpChange;
+    let newCurrent = participant.hitPoints.current + amount;
     newCurrent = Math.max(0, Math.min(newCurrent, participant.hitPoints.max));
 
     updateParticipant(participantId, {
@@ -46,9 +48,27 @@ export default function InitiativeTracker() {
         current: newCurrent,
       },
     });
+  };
 
-    setEditingHPId(null);
-    setHpChange(0);
+  const updateInitiative = (participantId: string, newInitiative: number) => {
+    updateParticipant(participantId, {
+      initiative: newInitiative,
+    });
+    setEditingInitiativeId(null);
+    // Tri automatique après mise à jour du state
+    setTimeout(() => sortInitiatives(), 100);
+  };
+
+  const rollSingleInitiative = (participantId: string) => {
+    const participant = currentEncounter.participants.find(p => p.id === participantId);
+    if (!participant) return;
+    
+    const roll = Math.floor(Math.random() * 20) + 1 + participant.initiativeBonus;
+    updateParticipant(participantId, {
+      initiative: roll,
+    });
+    // Tri automatique après mise à jour du state
+    setTimeout(() => sortInitiatives(), 100);
   };
 
   const addConditionToParticipant = (participantId: string, conditionId: string) => {
@@ -126,6 +146,15 @@ export default function InitiativeTracker() {
             Relancer
           </button>
           <button
+            onClick={sortInitiatives}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+            Trier
+          </button>
+          <button
             onClick={() => setShowAddCharacter(!showAddCharacter)}
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
           >
@@ -186,9 +215,61 @@ export default function InitiativeTracker() {
                         {participant.level && <><span>•</span><span>Niv {participant.level}</span></>}
                       </div>
                       <div className="text-xs text-gray-600 flex items-center gap-1.5 mt-0.5">
-                        <span className="font-medium">Initiative: {participant.initiative}</span>
-                        <span>•</span><span>CA: {participant.armorClass}</span>
+                        <span>CA: {participant.armorClass}</span>
                         {participant.speed && <><span>•</span><span>Vitesse: {participant.speed} m</span></>}
+                      </div>
+                      <div className="text-xs flex items-center gap-2 mt-1">
+                        {editingInitiativeId === participant.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-gray-600">Initiative:</span>
+                            <input
+                              type="number"
+                              value={tempInitiative}
+                              onChange={(e) => setTempInitiative(parseInt(e.target.value) || 0)}
+                              className="w-16 px-2 py-0.5 border border-gray-200 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => updateInitiative(participant.id, tempInitiative)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded text-xs font-medium"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setEditingInitiativeId(null)}
+                              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded text-xs font-medium"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">
+                              Initiative: {participant.initiative > 0 ? participant.initiative : '—'}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setTempInitiative(participant.initiative);
+                                setEditingInitiativeId(participant.id);
+                              }}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Éditer manuellement"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => rollSingleInitiative(participant.id)}
+                              className="text-green-600 hover:text-green-800"
+                              title="Lancer l'initiative"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -207,91 +288,52 @@ export default function InitiativeTracker() {
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-xs font-medium text-gray-700">Points de Vie</span>
-                      {editingHPId !== participant.id && (
-                        <button
-                          onClick={() => setEditingHPId(participant.id)}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Modifier
-                        </button>
-                      )}
                     </div>
                     
-                    {editingHPId === participant.id ? (
-                      <div className="space-y-2">
-                        <div className="flex gap-1.5 items-center">
-                          <button
-                            onClick={() => setHpChange(hpChange - 5)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-1 rounded text-xs font-medium"
-                          >
-                            -5
-                          </button>
-                          <button
-                            onClick={() => setHpChange(hpChange - 1)}
-                            className="bg-red-400 hover:bg-red-500 text-white px-2.5 py-1 rounded text-xs font-medium"
-                          >
-                            -1
-                          </button>
-                          <input
-                            type="number"
-                            value={hpChange}
-                            onChange={(e) => setHpChange(parseInt(e.target.value) || 0)}
-                            className="w-16 px-2 py-1 border border-gray-200 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                          <button
-                            onClick={() => setHpChange(hpChange + 1)}
-                            className="bg-green-400 hover:bg-green-500 text-white px-2.5 py-1 rounded text-xs font-medium"
-                          >
-                            +1
-                          </button>
-                          <button
-                            onClick={() => setHpChange(hpChange + 5)}
-                            className="bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded text-xs font-medium"
-                          >
-                            +5
-                          </button>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => applyHPChange(participant.id)}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-medium"
-                          >
-                            Appliquer
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingHPId(null);
-                              setHpChange(0);
-                            }}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-xs font-medium"
-                          >
-                            Annuler
-                          </button>
-                        </div>
+                    <div>
+                      <div className="bg-gray-200 rounded-full h-5 overflow-hidden mb-2">
+                        <div
+                          className={`h-full transition-all ${
+                            hpPercent > 50
+                              ? 'bg-green-500'
+                              : hpPercent > 25
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.max(0, hpPercent)}%` }}
+                        />
                       </div>
-                    ) : (
-                      <div>
-                        <div className="bg-gray-200 rounded-full h-5 overflow-hidden">
-                          <div
-                            className={`h-full transition-all ${
-                              hpPercent > 50
-                                ? 'bg-green-500'
-                                : hpPercent > 25
-                                ? 'bg-yellow-500'
-                                : 'bg-red-500'
-                            }`}
-                            style={{ width: `${Math.max(0, hpPercent)}%` }}
-                          />
-                        </div>
-                        <div className="mt-1.5 text-center font-semibold text-sm">
-                          {participant.hitPoints.current}
-                          {participant.hitPoints.temporary > 0 && (
-                            <span className="text-blue-600"> +{participant.hitPoints.temporary}</span>
-                          )}
-                          <span className="text-gray-500 font-normal"> / {participant.hitPoints.max}</span>
-                        </div>
+                      <div className="text-center font-semibold text-sm mb-2">
+                        {participant.hitPoints.current}
+                        {participant.hitPoints.temporary > 0 && (
+                          <span className="text-blue-600"> +{participant.hitPoints.temporary}</span>
+                        )}
+                        <span className="text-gray-500 font-normal"> / {participant.hitPoints.max}</span>
                       </div>
-                    )}
+                      <div className="flex gap-1.5 items-center">
+                        <button
+                          onClick={() => applyHPChange(participant.id, -hpChange)}
+                          className="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded font-bold text-lg flex items-center justify-center"
+                          title="Retirer des PV"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          value={hpChange}
+                          onChange={(e) => setHpChange(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          min="1"
+                        />
+                        <button
+                          onClick={() => applyHPChange(participant.id, hpChange)}
+                          className="bg-green-500 hover:bg-green-600 text-white w-8 h-8 rounded font-bold text-lg flex items-center justify-center"
+                          title="Ajouter des PV"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
