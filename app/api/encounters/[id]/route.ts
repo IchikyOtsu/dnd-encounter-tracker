@@ -3,9 +3,10 @@ import { getEncounter, updateEncounter, deleteEncounter } from '@/lib/db-operati
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const encounter = await getEncounter(params.id);
     if (!encounter) {
       return NextResponse.json(
@@ -25,9 +26,10 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const updates = await request.json();
     await updateEncounter(params.id, updates);
     return NextResponse.json({ success: true });
@@ -42,9 +44,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     await deleteEncounter(params.id);
     return NextResponse.json({ success: true });
   } catch (error) {

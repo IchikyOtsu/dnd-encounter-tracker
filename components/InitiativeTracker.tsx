@@ -25,6 +25,11 @@ export default function InitiativeTracker() {
   const [editingInitiativeId, setEditingInitiativeId] = useState<string | null>(null);
   const [tempInitiative, setTempInitiative] = useState<number>(0);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [showConditionModal, setShowConditionModal] = useState(false);
+  const [selectedParticipantForCondition, setSelectedParticipantForCondition] = useState<string | null>(null);
+  const [selectedConditionId, setSelectedConditionId] = useState<string>('');
+  const [conditionDuration, setConditionDuration] = useState<string>('');
+  const [concentrationReminder, setConcentrationReminder] = useState<string | null>(null);
 
   if (!currentEncounter) {
     return (
@@ -44,6 +49,14 @@ export default function InitiativeTracker() {
     if (!participant) return;
 
     const rawNewCurrent = participant.hitPoints.current + amount;
+    
+    // Rappel de concentration si le personnage prend des dégâts
+    if (amount < 0 && participant.isConcentrating) {
+      const damage = Math.abs(amount);
+      const dc = Math.max(10, Math.floor(damage / 2));
+      setConcentrationReminder(`${participant.name} doit faire un jet de sauvegarde de Constitution DD ${dc} pour maintenir sa concentration !`);
+      setTimeout(() => setConcentrationReminder(null), 8000);
+    }
     
     // Vérifier les dégâts massifs (mort instantanée)
     // Si les dégâts font tomber à un négatif >= au maximum de HP, mort instantanée
@@ -87,16 +100,32 @@ export default function InitiativeTracker() {
     updateInitiativeAndSort(participantId, roll);
   };
 
-  const addConditionToParticipant = (participantId: string, conditionId: string) => {
+  const openConditionModal = (participantId: string) => {
+    setSelectedParticipantForCondition(participantId);
+    setSelectedConditionId('');
+    setConditionDuration('');
+    setShowConditionModal(true);
+  };
+
+  const addConditionToParticipant = (participantId: string, conditionId: string, duration?: number) => {
     const participant = currentEncounter.participants.find(p => p.id === participantId);
     if (!participant) return;
 
     const condition = COMMON_CONDITIONS.find(c => c.id === conditionId);
     if (condition && !participant.conditions.find(c => c.id === conditionId)) {
+      const newCondition = {
+        ...condition,
+        duration: duration && duration > 0 ? duration : undefined,
+      };
       updateParticipant(participantId, {
-        conditions: [...participant.conditions, condition],
+        conditions: [...participant.conditions, newCondition],
       });
     }
+    
+    setShowConditionModal(false);
+    setSelectedParticipantForCondition(null);
+    setSelectedConditionId('');
+    setConditionDuration('');
   };
 
   const removeConditionFromParticipant = (participantId: string, conditionId: string) => {
@@ -108,12 +137,122 @@ export default function InitiativeTracker() {
     });
   };
 
+  const toggleConcentration = (participantId: string) => {
+    const participant = currentEncounter.participants.find(p => p.id === participantId);
+    if (!participant) return;
+
+    updateParticipant(participantId, {
+      isConcentrating: !participant.isConcentrating,
+    });
+  };
+
   const availableCharacters = characters.filter(
     c => !currentEncounter.participants.find(p => p.id === c.id)
   );
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Rappel de concentration */}
+      {concentrationReminder && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-md animate-bounce">
+          <div className="bg-purple-600 text-white rounded-lg shadow-2xl p-4 border-2 border-purple-800">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <div className="font-bold mb-1">⚠️ Test de Concentration</div>
+                <div className="text-sm">{concentrationReminder}</div>
+              </div>
+              <button
+                onClick={() => setConcentrationReminder(null)}
+                className="text-white hover:text-purple-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'ajout de condition */}
+      {showConditionModal && selectedParticipantForCondition && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6">
+              <h3 className="text-xl font-bold">Ajouter un état</h3>
+              <p className="text-sm opacity-90 mt-1">Sélectionnez un état et sa durée optionnelle</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  État
+                </label>
+                <select
+                  value={selectedConditionId}
+                  onChange={(e) => setSelectedConditionId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                >
+                  <option value="">Sélectionner un état</option>
+                  {COMMON_CONDITIONS.filter(
+                    c => !currentEncounter.participants.find(p => p.id === selectedParticipantForCondition)?.conditions.find(pc => pc.id === c.id)
+                  ).map((condition) => (
+                    <option key={condition.id} value={condition.id}>
+                      {condition.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Durée (en rounds) - Optionnel
+                </label>
+                <input
+                  type="number"
+                  value={conditionDuration}
+                  onChange={(e) => setConditionDuration(e.target.value)}
+                  placeholder="Laisser vide pour permanent"
+                  min="1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Si aucune durée n'est spécifiée, l'état sera permanent jusqu'à suppression manuelle
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (selectedConditionId) {
+                      const duration = conditionDuration ? parseInt(conditionDuration) : undefined;
+                      addConditionToParticipant(selectedParticipantForCondition, selectedConditionId, duration);
+                    }
+                  }}
+                  disabled={!selectedConditionId}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Ajouter
+                </button>
+                <button
+                  onClick={() => {
+                    setShowConditionModal(false);
+                    setSelectedParticipantForCondition(null);
+                    setSelectedConditionId('');
+                    setConditionDuration('');
+                  }}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de confirmation de fin de rencontre */}
       {showEndModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -522,6 +661,11 @@ export default function InitiativeTracker() {
                           title={condition.description}
                         >
                           {condition.name}
+                          {condition.duration !== undefined && (
+                            <span className="bg-amber-200 px-1.5 py-0.5 rounded font-bold">
+                              {condition.duration}r
+                            </span>
+                          )}
                           <button
                             onClick={() => removeConditionFromParticipant(participant.id, condition.id)}
                             className="text-amber-700 hover:text-amber-900 transition-colors"
@@ -537,25 +681,24 @@ export default function InitiativeTracker() {
                   </div>
                 )}
 
-                <div className="mt-3">
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        addConditionToParticipant(participant.id, e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => openConditionModal(participant.id)}
+                    className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors font-medium text-gray-700"
                   >
-                    <option value="">+ Ajouter un état</option>
-                    {COMMON_CONDITIONS.filter(
-                      c => !participant.conditions.find(pc => pc.id === c.id)
-                    ).map((condition) => (
-                      <option key={condition.id} value={condition.id}>
-                        {condition.name}
-                      </option>
-                    ))}
-                  </select>
+                    + Ajouter un état
+                  </button>
+                  <button
+                    onClick={() => toggleConcentration(participant.id)}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      participant.isConcentrating
+                        ? 'bg-purple-600 text-white hover:bg-purple-700 ring-2 ring-purple-300'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title={participant.isConcentrating ? 'Concentration active - Cliquer pour désactiver' : 'Pas de concentration - Cliquer pour activer'}
+                  >
+                    {participant.isConcentrating ? '🔮 Concentration' : '○ Concentration'}
+                  </button>
                 </div>
               </div>
             );

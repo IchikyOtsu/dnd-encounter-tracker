@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { updateCharacter, deleteCharacter } from '@/lib/db-operations';
+import { updateMacro, deleteMacro } from '@/lib/dice-operations';
 
 export async function PATCH(
   request: Request,
@@ -8,12 +8,12 @@ export async function PATCH(
   try {
     const params = await props.params;
     const updates = await request.json();
-    await updateCharacter(params.id, updates);
+    await updateMacro(params.id, updates);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error updating character:', error);
+    console.error('Error updating macro:', error);
     return NextResponse.json(
-      { error: 'Failed to update character' },
+      { error: 'Failed to update macro' },
       { status: 500 }
     );
   }
@@ -25,12 +25,12 @@ export async function DELETE(
 ) {
   try {
     const params = await props.params;
-    await deleteCharacter(params.id);
+    await deleteMacro(params.id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting character:', error);
+    console.error('Error deleting macro:', error);
     return NextResponse.json(
-      { error: 'Failed to delete character' },
+      { error: 'Failed to delete macro' },
       { status: 500 }
     );
   }

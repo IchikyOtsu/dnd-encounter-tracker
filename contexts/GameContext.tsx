@@ -13,7 +13,7 @@ interface GameContextType {
   deleteCharacter: (id: string) => Promise<void>;
   createEncounter: (name: string, characterIds: string[]) => Promise<void>;
   deleteEncounter: (encounterId: string) => Promise<void>;
-  startEncounter: (encounterId: string) => void;
+  startEncounter: (encounterId: string) => Promise<void>;
   endEncounter: () => Promise<void>;
   endEncounterAndSave: () => Promise<void>;
   nextTurn: () => Promise<void>;
@@ -66,6 +66,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
           participants: enc.participants.map(normalizeParticipant),
         }));
         setEncounters(normalizedEncounters);
+
+        // Restaurer automatiquement la rencontre active si elle existe
+        const activeEncounter = normalizedEncounters.find((enc: Encounter) => enc.isActive);
+        if (activeEncounter) {
+          setCurrentEncounter(activeEncounter);
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -188,7 +194,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const startEncounter = (encounterId: string) => {
+  const startEncounter = async (encounterId: string) => {
     const encounter = encounters.find(e => e.id === encounterId);
     if (encounter) {
       // Initialize participants without rolling initiative (set to 0)
@@ -209,10 +215,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isActive: true,
       };
 
-      setCurrentEncounter(activeEncounter);
-      setEncounters(prev =>
-        prev.map(e => (e.id === encounterId ? activeEncounter : e))
-      );
+      try {
+        // Sauvegarder l'état actif dans la base de données
+        await fetch(`/api/encounters/${encounterId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            isActive: true,
+            currentRound: 1,
+            currentTurnIndex: 0,
+          }),
+        });
+
+        setCurrentEncounter(activeEncounter);
+        setEncounters(prev =>
+          prev.map(e => (e.id === encounterId ? activeEncounter : e))
+        );
+      } catch (error) {
+        console.error('Error starting encounter:', error);
+      }
     }
   };
 
@@ -286,10 +307,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     let nextIndex = currentEncounter.currentTurnIndex + 1;
     let nextRound = currentEncounter.currentRound;
+    let updatedParticipants = [...currentEncounter.participants];
 
+    // Si on boucle sur tous les participants, nouveau round
     if (nextIndex >= currentEncounter.participants.length) {
       nextIndex = 0;
       nextRound += 1;
+
+      // Décrémenter la durée des conditions de tous les participants
+      updatedParticipants = updatedParticipants.map(participant => ({
+        ...participant,
+        conditions: participant.conditions
+          .map(cond => ({
+            ...cond,
+            duration: cond.duration !== undefined && cond.duration > 0 ? cond.duration - 1 : cond.duration,
+          }))
+          .filter(cond => cond.duration === undefined || cond.duration > 0), // Retirer les conditions expirées
+      }));
+
+      // Mettre à jour les conditions de chaque participant dans la BD
+      for (const participant of updatedParticipants) {
+        const originalParticipant = currentEncounter.participants.find(p => p.id === participant.id);
+        if (originalParticipant && JSON.stringify(originalParticipant.conditions) !== JSON.stringify(participant.conditions)) {
+          await updateParticipant(participant.id, { conditions: participant.conditions });
+        }
+      }
     }
 
     try {
@@ -306,6 +348,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ...currentEncounter,
         currentTurnIndex: nextIndex,
         currentRound: nextRound,
+        participants: updatedParticipants,
       };
 
       setCurrentEncounter(updatedEncounter);

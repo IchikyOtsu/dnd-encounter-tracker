@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Character, CharacterType, CharacterClass, AbilityScores, calculateModifier, MonsterStats } from '@/types/dnd';
+import { Character, CharacterType, CharacterClass, AbilityScores, calculateModifier, MonsterStats, Ability, Skill, SKILL_ABILITY_MAP } from '@/types/dnd';
 import { useGame } from '@/contexts/GameContext';
 
 interface CharacterFormProps {
@@ -43,6 +43,9 @@ export default function CharacterForm({ editCharacter, onClose }: CharacterFormP
     monsterDamageImmunities: '',
     monsterDamageResistances: '',
     monsterDamageVulnerabilities: '',
+    monsterSavingThrows: {} as Partial<Record<Ability, boolean>>,
+    monsterSkills: {} as Partial<Record<Skill, 0 | 1 | 2>>,
+    monsterSkillBonuses: {} as Partial<Record<Skill, number>>,
     monsterTraits: [] as Array<{ name: string; description: string }>,
     monsterActions: [] as Array<{ name: string; description: string }>,
     monsterLegendaryActions: [] as Array<{ name: string; description: string }>,
@@ -83,6 +86,24 @@ export default function CharacterForm({ editCharacter, onClose }: CharacterFormP
         monsterDamageImmunities: ms?.damageImmunities || '',
         monsterDamageResistances: ms?.damageResistances || '',
         monsterDamageVulnerabilities: ms?.damageVulnerabilities || '',
+        monsterSavingThrows: ms?.savingThrows || {},
+        monsterSkills: (() => {
+          // Convertir les anciennes valeurs boolean en valeurs numériques (0, 1, 2)
+          const skills: Partial<Record<Skill, 0 | 1 | 2>> = {};
+          if (ms?.skills) {
+            for (const [skill, value] of Object.entries(ms.skills)) {
+              // Si c'est un boolean (ancien format), convertir true -> 1, false -> 0
+              // Si c'est déjà un nombre, le garder tel quel
+              if (typeof value === 'boolean') {
+                skills[skill as Skill] = value ? 1 : 0;
+              } else {
+                skills[skill as Skill] = value as 0 | 1 | 2;
+              }
+            }
+          }
+          return skills;
+        })(),
+        monsterSkillBonuses: ms?.skillBonuses || {},
         monsterTraits: ms?.specialTraits || [],
         monsterActions: ms?.actions || [],
         monsterLegendaryActions: ms?.legendaryActions || [],
@@ -116,6 +137,18 @@ export default function CharacterForm({ editCharacter, onClose }: CharacterFormP
       damageImmunities: formData.monsterDamageImmunities || undefined,
       damageResistances: formData.monsterDamageResistances || undefined,
       damageVulnerabilities: formData.monsterDamageVulnerabilities || undefined,
+      savingThrows: Object.keys(formData.monsterSavingThrows).length > 0 ? formData.monsterSavingThrows : undefined,
+      skills: (() => {
+        // Filtrer pour ne garder que les compétences avec maîtrise (> 0)
+        const filteredSkills: Partial<Record<Skill, number>> = {};
+        for (const [skill, level] of Object.entries(formData.monsterSkills)) {
+          if (typeof level === 'number' && level > 0) {
+            filteredSkills[skill as Skill] = level;
+          }
+        }
+        return Object.keys(filteredSkills).length > 0 ? filteredSkills : undefined;
+      })(),
+      skillBonuses: Object.keys(formData.monsterSkillBonuses).length > 0 ? formData.monsterSkillBonuses : undefined,
       specialTraits: formData.monsterTraits.length > 0 ? formData.monsterTraits : undefined,
       actions: formData.monsterActions.length > 0 ? formData.monsterActions : undefined,
       legendaryActions: formData.monsterLegendaryActions.length > 0 ? formData.monsterLegendaryActions : undefined,
@@ -501,6 +534,106 @@ export default function CharacterForm({ editCharacter, onClose }: CharacterFormP
                     placeholder="feu, radiant..."
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+              </div>
+
+              {/* Saving Throws Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Jets de Sauvegarde</label>
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                  {(['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as Ability[]).map((ability) => (
+                    <label key={ability} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.monsterSavingThrows[ability] || false}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          monsterSavingThrows: {
+                            ...formData.monsterSavingThrows,
+                            [ability]: e.target.checked
+                          }
+                        })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{ability}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Skills Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Compétences
+                  <span className="text-xs text-gray-500 ml-2">(Cliquez 1× pour maîtrise, 2× pour expertise)</span>
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {(['Acrobaties', 'Arcanes', 'Athlétisme', 'Discrétion', 'Dressage', 'Escamotage', 
+                    'Histoire', 'Intimidation', 'Investigation', 'Médecine', 'Nature', 'Perception', 
+                    'Perspicacité', 'Persuasion', 'Religion', 'Représentation', 'Survie', 'Tromperie'] as Skill[]).map((skill) => {
+                    const profLevel = formData.monsterSkills[skill] || 0;
+                    return (
+                      <div key={skill} className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentLevel = formData.monsterSkills[skill] || 0;
+                            const nextLevel = (currentLevel + 1) % 3 as 0 | 1 | 2;
+                            const newSkills = { ...formData.monsterSkills };
+                            if (nextLevel === 0) {
+                              delete newSkills[skill];
+                            } else {
+                              newSkills[skill] = nextLevel;
+                            }
+                            setFormData({
+                              ...formData,
+                              monsterSkills: newSkills
+                            });
+                          }}
+                          className="flex items-center space-x-2 cursor-pointer flex-1 text-left hover:bg-gray-50 p-1 rounded transition-colors"
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                            profLevel === 0 ? 'border-gray-300 bg-white' :
+                            profLevel === 1 ? 'border-blue-500 bg-blue-500' :
+                            'border-purple-600 bg-purple-600'
+                          }`}>
+                            {profLevel === 1 && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                            {profLevel === 2 && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-700">
+                            {skill} <span className="text-xs text-gray-500">({SKILL_ABILITY_MAP[skill]})</span>
+                          </span>
+                        </button>
+                        <input
+                          type="number"
+                          value={formData.monsterSkillBonuses[skill] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const newBonuses = { ...formData.monsterSkillBonuses };
+                            if (val === '' || val === '-') {
+                              delete newBonuses[skill];
+                            } else {
+                              newBonuses[skill] = parseInt(val);
+                            }
+                            setFormData({
+                              ...formData,
+                              monsterSkillBonuses: newBonuses
+                            });
+                          }}
+                          placeholder="Auto"
+                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

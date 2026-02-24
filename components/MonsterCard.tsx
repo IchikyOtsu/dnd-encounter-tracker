@@ -1,6 +1,7 @@
 'use client';
 
-import { Character, calculateModifier, formatCR, getXPFromCR, getProficiencyFromCR } from '@/types/dnd';
+import { useState } from 'react';
+import { Character, calculateModifier, formatCR, getXPFromCR, getProficiencyFromCR, SKILL_ABILITY_MAP, Ability, Skill } from '@/types/dnd';
 
 interface MonsterCardProps {
   monster: Character;
@@ -13,6 +14,74 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
   const profBonus = stats?.challengeRating ? getProficiencyFromCR(stats.challengeRating) : monster.proficiencyBonus || 2;
   const xp = stats?.challengeRating ? getXPFromCR(stats.challengeRating) : 0;
   const cr = stats?.challengeRating ? formatCR(stats.challengeRating) : '?';
+  
+  const [expandedTraits, setExpandedTraits] = useState<Set<number>>(new Set());
+  const [expandedActions, setExpandedActions] = useState<Set<number>>(new Set());
+  const [expandedLegendary, setExpandedLegendary] = useState<Set<number>>(new Set());
+  const [expandedReactions, setExpandedReactions] = useState<Set<number>>(new Set());
+
+  const toggleExpanded = (set: Set<number>, setter: (s: Set<number>) => void, index: number) => {
+    const newSet = new Set(set);
+    if (newSet.has(index)) {
+      newSet.delete(index);
+    } else {
+      newSet.add(index);
+    }
+    setter(newSet);
+  };
+
+  // Calculer les bonus de jets de sauvegarde
+  const getSavingThrowBonus = (ability: Ability): string => {
+    const abilityMod = calculateModifier(monster.abilities[ability]);
+    const isProficient = stats?.savingThrows?.[ability] || false;
+    const bonus = abilityMod + (isProficient ? profBonus : 0);
+    return `${bonus >= 0 ? '+' : ''}${bonus}`;
+  };
+
+  // Calculer les bonus de compétences
+  const getSkillBonus = (skill: Skill): string => {
+    // Si un bonus manuel est défini, l'utiliser
+    if (stats?.skillBonuses?.[skill] !== undefined) {
+      const bonus = stats.skillBonuses[skill];
+      return `${bonus >= 0 ? '+' : ''}${bonus}`;
+    }
+    // Sinon, calcul automatique
+    const ability = SKILL_ABILITY_MAP[skill];
+    const abilityMod = calculateModifier(monster.abilities[ability]);
+    let profLevel = stats?.skills?.[skill] || 0;
+    // Compatibilité avec l'ancien format boolean
+    if (typeof profLevel === 'boolean') {
+      profLevel = profLevel ? 1 : 0;
+    }
+    // 0 = pas de maîtrise, 1 = maîtrise simple, 2 = expertise (double maîtrise)
+    const bonus = abilityMod + (profBonus * profLevel);
+    return `${bonus >= 0 ? '+' : ''}${bonus}`;
+  };
+
+  // Filtrer les jets de sauvegarde avec maîtrise
+  const proficientSaves = stats?.savingThrows 
+    ? (Object.entries(stats.savingThrows) as [Ability, boolean][])
+        .filter(([_, isProficient]) => isProficient)
+        .map(([ability]) => `${ability} ${getSavingThrowBonus(ability)}`)
+    : [];
+
+  // Filtrer les compétences avec maîtrise ou expertise
+  const proficientSkills = stats?.skills
+    ? (Object.entries(stats.skills) as [Skill, number | boolean][])
+        .filter(([_, value]) => {
+          // Compatibilité avec l'ancien format boolean
+          if (typeof value === 'boolean') return value;
+          // Nouveau format numérique
+          return value > 0;
+        })
+        .map(([skill, value]) => {
+          const bonus = getSkillBonus(skill);
+          // Convertir boolean en nombre pour l'affichage
+          const profLevel = typeof value === 'boolean' ? (value ? 1 : 0) : value;
+          const marker = profLevel === 2 ? ' ★' : ''; // Étoile pour expertise
+          return `${skill}${marker} ${bonus}`;
+        })
+    : [];
 
   return (
     <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-lg border-2 border-red-200 p-5 shadow-sm hover:shadow-md transition-all">
@@ -86,6 +155,18 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
 
       {/* Extra Info */}
       <div className="space-y-1 text-xs text-red-900 border-b-2 border-red-900 pb-3 mb-4">
+        {proficientSaves.length > 0 && (
+          <div className="flex items-baseline">
+            <span className="font-bold min-w-[140px]">Jets de sauvegarde</span>
+            <span>{proficientSaves.join(', ')}</span>
+          </div>
+        )}
+        {proficientSkills.length > 0 && (
+          <div className="flex items-baseline">
+            <span className="font-bold min-w-[140px]">Compétences</span>
+            <span>{proficientSkills.join(', ')}</span>
+          </div>
+        )}
         {stats?.damageImmunities && (
           <div className="flex items-baseline">
             <span className="font-bold min-w-[140px]">Immunités (dégâts)</span>
@@ -134,12 +215,30 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
       {/* Special Traits */}
       {stats?.specialTraits && stats.specialTraits.length > 0 && (
         <div className="mb-4">
+          <h4 className="text-sm font-bold text-red-900 mb-2">Capacités Spéciales</h4>
           {stats.specialTraits.map((trait, index) => (
             <div key={index} className="mb-2">
-              <div className="text-xs">
-                <span className="font-bold text-red-900 italic">{trait.name}. </span>
-                <span className="text-red-800">{trait.description}</span>
-              </div>
+              <button
+                onClick={() => toggleExpanded(expandedTraits, setExpandedTraits, index)}
+                className="w-full text-left hover:bg-red-50 rounded px-2 py-1 transition-colors"
+              >
+                <div className="text-xs flex items-center justify-between">
+                  <span className="font-bold text-red-900 italic">{trait.name}</span>
+                  <svg
+                    className={`w-4 h-4 text-red-600 transition-transform ${expandedTraits.has(index) ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {expandedTraits.has(index) && (
+                <div className="text-xs text-red-800 mt-1 px-2 py-1 bg-red-50 rounded">
+                  {trait.description}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -151,10 +250,27 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
           <h4 className="text-sm font-bold text-red-900 mb-2">Actions</h4>
           {stats.actions.map((action, index) => (
             <div key={index} className="mb-2">
-              <div className="text-xs">
-                <span className="font-bold text-red-900 italic">{action.name}. </span>
-                <span className="text-red-800">{action.description}</span>
-              </div>
+              <button
+                onClick={() => toggleExpanded(expandedActions, setExpandedActions, index)}
+                className="w-full text-left hover:bg-red-50 rounded px-2 py-1 transition-colors"
+              >
+                <div className="text-xs flex items-center justify-between">
+                  <span className="font-bold text-red-900 italic">{action.name}</span>
+                  <svg
+                    className={`w-4 h-4 text-red-600 transition-transform ${expandedActions.has(index) ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {expandedActions.has(index) && (
+                <div className="text-xs text-red-800 mt-1 px-2 py-1 bg-red-50 rounded">
+                  {action.description}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -166,10 +282,27 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
           <h4 className="text-sm font-bold text-red-900 mb-2">Actions Légendaires</h4>
           {stats.legendaryActions.map((action, index) => (
             <div key={index} className="mb-2">
-              <div className="text-xs">
-                <span className="font-bold text-red-900 italic">{action.name}. </span>
-                <span className="text-red-800">{action.description}</span>
-              </div>
+              <button
+                onClick={() => toggleExpanded(expandedLegendary, setExpandedLegendary, index)}
+                className="w-full text-left hover:bg-red-50 rounded px-2 py-1 transition-colors"
+              >
+                <div className="text-xs flex items-center justify-between">
+                  <span className="font-bold text-red-900 italic">{action.name}</span>
+                  <svg
+                    className={`w-4 h-4 text-red-600 transition-transform ${expandedLegendary.has(index) ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {expandedLegendary.has(index) && (
+                <div className="text-xs text-red-800 mt-1 px-2 py-1 bg-red-50 rounded">
+                  {action.description}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -181,10 +314,27 @@ export default function MonsterCard({ monster, onEdit, onDelete }: MonsterCardPr
           <h4 className="text-sm font-bold text-red-900 mb-2">Réactions</h4>
           {stats.reactions.map((reaction, index) => (
             <div key={index} className="mb-2">
-              <div className="text-xs">
-                <span className="font-bold text-red-900 italic">{reaction.name}. </span>
-                <span className="text-red-800">{reaction.description}</span>
-              </div>
+              <button
+                onClick={() => toggleExpanded(expandedReactions, setExpandedReactions, index)}
+                className="w-full text-left hover:bg-red-50 rounded px-2 py-1 transition-colors"
+              >
+                <div className="text-xs flex items-center justify-between">
+                  <span className="font-bold text-red-900 italic">{reaction.name}</span>
+                  <svg
+                    className={`w-4 h-4 text-red-600 transition-transform ${expandedReactions.has(index) ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {expandedReactions.has(index) && (
+                <div className="text-xs text-red-800 mt-1 px-2 py-1 bg-red-50 rounded">
+                  {reaction.description}
+                </div>
+              )}
             </div>
           ))}
         </div>

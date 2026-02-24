@@ -17,6 +17,34 @@ export interface AbilityScores {
   CHA: number;
 }
 
+export type Skill = 
+  | 'Acrobaties' | 'Arcanes' | 'Athlétisme' | 'Discrétion'
+  | 'Dressage' | 'Escamotage' | 'Histoire' | 'Intimidation'
+  | 'Investigation' | 'Médecine' | 'Nature' | 'Perception'
+  | 'Perspicacité' | 'Persuasion' | 'Religion' | 'Représentation'
+  | 'Survie' | 'Tromperie';
+
+export const SKILL_ABILITY_MAP: Record<Skill, Ability> = {
+  'Acrobaties': 'DEX',
+  'Arcanes': 'INT',
+  'Athlétisme': 'STR',
+  'Discrétion': 'DEX',
+  'Dressage': 'WIS',
+  'Escamotage': 'DEX',
+  'Histoire': 'INT',
+  'Intimidation': 'CHA',
+  'Investigation': 'INT',
+  'Médecine': 'WIS',
+  'Nature': 'INT',
+  'Perception': 'WIS',
+  'Perspicacité': 'WIS',
+  'Persuasion': 'CHA',
+  'Religion': 'INT',
+  'Représentation': 'CHA',
+  'Survie': 'WIS',
+  'Tromperie': 'CHA',
+};
+
 export interface MonsterStats {
   size?: string; // Tiny, Small, Medium, Large, Huge, Gargantuan
   creatureType?: string; // Beast, Humanoid, Dragon, etc.
@@ -29,6 +57,9 @@ export interface MonsterStats {
   damageImmunities?: string; // fire, cold, etc.
   damageResistances?: string; // bludgeoning, piercing, etc.
   damageVulnerabilities?: string; // fire, radiant, etc.
+  savingThrows?: Partial<Record<Ability, boolean>>; // { STR: true, DEX: true } = proficient
+  skills?: Partial<Record<Skill, 0 | 1 | 2 | boolean>>; // 0=none, 1=proficient, 2=expert (double prof), boolean pour rétrocompatibilité
+  skillBonuses?: Partial<Record<Skill, number>>; // Bonus manuels pour les compétences { 'Athlétisme': 5 }
   specialTraits?: Array<{ name: string; description: string }>; // Pack Tactics, etc.
   actions?: Array<{ name: string; description: string }>; // Multiattack, Bite, etc.
   legendaryActions?: Array<{ name: string; description: string }>;
@@ -60,6 +91,7 @@ export interface Condition {
   id: string;
   name: string;
   description?: string;
+  duration?: number; // Durée en rounds, undefined = permanent
 }
 
 export interface EncounterParticipant extends Character {
@@ -71,6 +103,7 @@ export interface EncounterParticipant extends Character {
   };
   isStable: boolean;
   isDead: boolean;
+  isConcentrating?: boolean;
 }
 
 export interface Encounter {
@@ -84,21 +117,21 @@ export interface Encounter {
 }
 
 export const COMMON_CONDITIONS: Condition[] = [
-  { id: 'blinded', name: 'Blinded', description: 'Cannot see, fails checks that require sight' },
-  { id: 'charmed', name: 'Charmed', description: "Can't attack the charmer" },
-  { id: 'deafened', name: 'Deafened', description: 'Cannot hear, fails checks that require hearing' },
-  { id: 'frightened', name: 'Frightened', description: 'Disadvantage on ability checks and attacks' },
-  { id: 'grappled', name: 'Grappled', description: 'Speed becomes 0' },
-  { id: 'incapacitated', name: 'Incapacitated', description: "Can't take actions or reactions" },
-  { id: 'invisible', name: 'Invisible', description: 'Impossible to see without special means' },
-  { id: 'paralyzed', name: 'Paralyzed', description: 'Incapacitated and cannot move or speak' },
-  { id: 'petrified', name: 'Petrified', description: 'Transformed into solid substance' },
-  { id: 'poisoned', name: 'Poisoned', description: 'Disadvantage on attacks and ability checks' },
-  { id: 'prone', name: 'Prone', description: 'Disadvantage on attacks, advantage to be hit in melee' },
-  { id: 'restrained', name: 'Restrained', description: 'Speed becomes 0, disadvantage on attacks' },
-  { id: 'stunned', name: 'Stunned', description: 'Incapacitated, cannot move, can only speak falteringly' },
-  { id: 'unconscious', name: 'Unconscious', description: 'Incapacitated, unaware of surroundings' },
-  { id: 'exhaustion', name: 'Exhaustion', description: 'Multiple levels of exhaustion with cumulative effects' },
+  { id: 'blinded', name: 'Aveuglé', description: 'Ne peut pas voir, échoue les tests nécessitant la vue' },
+  { id: 'charmed', name: 'Charmé', description: 'Ne peut pas attaquer le charmeur' },
+  { id: 'deafened', name: 'Assourdi', description: 'Ne peut pas entendre, échoue les tests nécessitant l\'ouïe' },
+  { id: 'frightened', name: 'Effrayé', description: 'Désavantage aux tests de caractéristique et attaques' },
+  { id: 'grappled', name: 'Agrippé', description: 'Vitesse devient 0' },
+  { id: 'incapacitated', name: 'Neutralisé', description: 'Ne peut pas effectuer d\'actions ou de réactions' },
+  { id: 'invisible', name: 'Invisible', description: 'Impossible à voir sans moyen spécial' },
+  { id: 'paralyzed', name: 'Paralysé', description: 'Neutralisé et ne peut ni bouger ni parler' },
+  { id: 'petrified', name: 'Pétrifié', description: 'Transformé en substance solide' },
+  { id: 'poisoned', name: 'Empoisonné', description: 'Désavantage aux attaques et tests de caractéristique' },
+  { id: 'prone', name: 'À terre', description: 'Désavantage aux attaques, avantage pour être touché au corps à corps' },
+  { id: 'restrained', name: 'Entravé', description: 'Vitesse devient 0, désavantage aux attaques' },
+  { id: 'stunned', name: 'Étourdi', description: 'Neutralisé, ne peut pas bouger, ne peut parler que difficilement' },
+  { id: 'unconscious', name: 'Inconscient', description: 'Neutralisé, inconscient de ce qui l\'entoure' },
+  { id: 'exhaustion', name: 'Épuisement', description: 'Niveaux d\'épuisement cumulatifs avec effets multiples' },
 ];
 
 // D&D 5e Challenge Rating to XP conversion table

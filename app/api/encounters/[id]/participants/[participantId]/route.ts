@@ -3,9 +3,10 @@ import { updateEncounterParticipant } from '@/lib/db-operations';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string; participantId: string } }
+  props: { params: Promise<{ id: string; participantId: string }> }
 ) {
   try {
+    const params = await props.params;
     const updates = await request.json();
     await updateEncounterParticipant(params.id, params.participantId, updates);
     return NextResponse.json({ success: true });

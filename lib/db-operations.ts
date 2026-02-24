@@ -117,6 +117,18 @@ export async function updateCharacter(id: string, updates: Partial<Character>): 
     fields.push('name = ?');
     args.push(updates.name);
   }
+  if (updates.type !== undefined) {
+    fields.push('type = ?');
+    args.push(updates.type);
+  }
+  if (updates.class !== undefined) {
+    fields.push('class = ?');
+    args.push(updates.class || null);
+  }
+  if (updates.level !== undefined) {
+    fields.push('level = ?');
+    args.push(updates.level || null);
+  }
   if (updates.hitPoints !== undefined) {
     fields.push('hp_current = ?', 'hp_max = ?', 'hp_temporary = ?');
     args.push(updates.hitPoints.current, updates.hitPoints.max, updates.hitPoints.temporary || 0);
@@ -125,12 +137,39 @@ export async function updateCharacter(id: string, updates: Partial<Character>): 
     fields.push('armor_class = ?');
     args.push(updates.armorClass);
   }
+  if (updates.abilities !== undefined) {
+    fields.push('strength = ?', 'dexterity = ?', 'constitution = ?', 'intelligence = ?', 'wisdom = ?', 'charisma = ?');
+    args.push(
+      updates.abilities.STR,
+      updates.abilities.DEX,
+      updates.abilities.CON,
+      updates.abilities.INT,
+      updates.abilities.WIS,
+      updates.abilities.CHA
+    );
+  }
+  if (updates.speed !== undefined) {
+    fields.push('speed = ?');
+    args.push(updates.speed);
+  }
+  if (updates.proficiencyBonus !== undefined) {
+    fields.push('proficiency_bonus = ?');
+    args.push(updates.proficiencyBonus);
+  }
+  if (updates.initiativeBonus !== undefined) {
+    fields.push('initiative_bonus = ?');
+    args.push(updates.initiativeBonus);
+  }
+  if (updates.monsterStats !== undefined) {
+    fields.push('monster_stats = ?');
+    args.push(JSON.stringify(updates.monsterStats));
+  }
   if (updates.notes !== undefined) {
     fields.push('notes = ?');
     args.push(updates.notes);
   }
 
-  fields.push('updated_at = strftime("%s", "now")');
+  fields.push('updated_at = strftime(\'%s\', \'now\')');
   args.push(id, userId);
 
   await db.execute({
@@ -270,7 +309,7 @@ export async function updateEncounter(
     args.push(updates.isActive ? 1 : 0);
   }
 
-  fields.push('updated_at = strftime("%s", "now")');
+  fields.push('updated_at = strftime(\'%s\', \'now\')');
   args.push(encounterId, userId);
 
   await db.execute({
@@ -343,6 +382,7 @@ async function getEncounterParticipants(encounterId: string): Promise<EncounterP
     },
     isStable: row.is_stable === 1,
     isDead: row.is_dead === 1,
+    isConcentrating: row.is_concentrating === 1,
   }));
 }
 
@@ -356,8 +396,8 @@ async function addEncounterParticipant(
         id, encounter_id, character_id, initiative, has_acted,
         hp_current, hp_max, hp_temporary,
         death_saves_successes, death_saves_failures,
-        is_stable, is_dead, conditions
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        is_stable, is_dead, conditions, is_concentrating
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     args: [
       `${encounterId}_${participant.id}`,
@@ -373,6 +413,7 @@ async function addEncounterParticipant(
       participant.isStable ? 1 : 0,
       participant.isDead ? 1 : 0,
       JSON.stringify(participant.conditions),
+      participant.isConcentrating ? 1 : 0,
     ],
   });
 }
@@ -416,6 +457,10 @@ export async function updateEncounterParticipant(
   if (updates.conditions !== undefined) {
     fields.push('conditions = ?');
     args.push(JSON.stringify(updates.conditions));
+  }
+  if (updates.isConcentrating !== undefined) {
+    fields.push('is_concentrating = ?');
+    args.push(updates.isConcentrating ? 1 : 0);
   }
 
   args.push(encounterId, characterId);
