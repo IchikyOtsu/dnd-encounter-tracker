@@ -5,6 +5,7 @@ import { useGame } from '@/contexts/GameContext';
 import { calculateModifier, COMMON_CONDITIONS, getProficiencyFromCR, SKILL_ABILITY_MAP, Skill, Ability } from '@/types/dnd';
 import ReactMarkdown from 'react-markdown';
 import { Rnd } from 'react-rnd';
+import FlavorTextGenerator from './FlavorTextGenerator';
 
 export default function InitiativeTracker() {
   const {
@@ -37,6 +38,7 @@ export default function InitiativeTracker() {
   const [dmNotesPosition, setDmNotesPosition] = useState({ x: 0, y: 80 });
   const [dmNotesSize, setDmNotesSize] = useState({ width: 320, height: 384 });
   const [viewingCharacterId, setViewingCharacterId] = useState<string | null>(null);
+  const [showFlavorText, setShowFlavorText] = useState(false);
 
   if (!currentEncounter) {
     return (
@@ -683,7 +685,23 @@ export default function InitiativeTracker() {
             </svg>
             Ajouter
           </button>
+          <button
+            onClick={() => setShowFlavorText(!showFlavorText)}
+            className="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            </svg>
+            Narration
+          </button>
         </div>
+
+        {/* Générateur de Flavor Text */}
+        {showFlavorText && (
+          <div className="mb-5">
+            <FlavorTextGenerator />
+          </div>
+        )}
 
         {showAddCharacter && availableCharacters.length > 0 && (
           <div className="mb-5 p-4 bg-purple-50 rounded-lg border border-purple-200">

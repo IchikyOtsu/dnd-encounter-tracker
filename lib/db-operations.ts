@@ -476,3 +476,177 @@ export async function updateEncounterParticipant(
     args,
   });
 }
+
+// Flavor Texts Operations
+export async function getFlavorTexts(
+  actionType: string,
+  damageType: string,
+  resultType: string
+): Promise<any[]> {
+  const result = await db.execute({
+    sql: `SELECT * FROM flavor_texts WHERE action_type = ? AND damage_type = ? AND result_type = ?`,
+    args: [actionType, damageType, resultType],
+  });
+
+  return result.rows.map((row: any) => ({
+    id: row.id,
+    actionType: row.action_type,
+    damageType: row.damage_type,
+    resultType: row.result_type,
+    description: row.description,
+    createdAt: row.created_at ? new Date(row.created_at * 1000) : undefined,
+  }));
+}
+
+// Spells Operations
+export async function getSpells(
+  level?: number,
+  schoolFilter?: string,
+  classFilter?: string
+): Promise<any[]> {
+  let sql = `SELECT * FROM spells WHERE 1=1`;
+  const args: any[] = [];
+
+  if (level !== undefined) {
+    sql += ` AND level = ?`;
+    args.push(level);
+  }
+
+  if (schoolFilter) {
+    sql += ` AND school = ?`;
+    args.push(schoolFilter);
+  }
+
+  if (classFilter) {
+    sql += ` AND spell_lists LIKE ?`;
+    args.push(`%${classFilter}%`);
+  }
+
+  sql += ` ORDER BY level ASC, name ASC`;
+
+  const result = await db.execute({
+    sql,
+    args,
+  });
+
+  return result.rows.map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    level: row.level,
+    school: row.school,
+    spellLists: row.spell_lists,
+    castingTime: row.casting_time,
+    range: row.range,
+    components: row.components,
+    duration: row.duration,
+    description: row.description,
+    ritual: Boolean(row.ritual),
+    concentration: Boolean(row.concentration),
+    createdAt: row.created_at ? new Date(row.created_at * 1000) : undefined,
+  }));
+}
+
+export async function getSpellById(id: string): Promise<any | null> {
+  const result = await db.execute({
+    sql: `SELECT * FROM spells WHERE id = ?`,
+    args: [id],
+  });
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  return {
+    id: row.id,
+    name: row.name,
+    level: row.level,
+    school: row.school,
+    spellLists: row.spell_lists,
+    castingTime: row.casting_time,
+    range: row.range,
+    components: row.components,
+    duration: row.duration,
+    description: row.description,
+    ritual: Boolean(row.ritual),
+    concentration: Boolean(row.concentration),
+    createdAt: row.created_at ? new Date(row.created_at * 1000) : undefined,
+  };
+}
+
+export async function updateSpell(
+  id: string,
+  updates: {
+    name?: string;
+    level?: number;
+    school?: string;
+    spellLists?: string;
+    castingTime?: string;
+    range?: string;
+    components?: string;
+    duration?: string;
+    description?: string;
+    ritual?: boolean;
+    concentration?: boolean;
+  }
+): Promise<void> {
+  const fields: string[] = [];
+  const args: any[] = [];
+
+  if (updates.name !== undefined) {
+    fields.push('name = ?');
+    args.push(updates.name);
+  }
+  if (updates.level !== undefined) {
+    fields.push('level = ?');
+    args.push(updates.level);
+  }
+  if (updates.school !== undefined) {
+    fields.push('school = ?');
+    args.push(updates.school);
+  }
+  if (updates.spellLists !== undefined) {
+    fields.push('spell_lists = ?');
+    args.push(updates.spellLists);
+  }
+  if (updates.castingTime !== undefined) {
+    fields.push('casting_time = ?');
+    args.push(updates.castingTime);
+  }
+  if (updates.range !== undefined) {
+    fields.push('range = ?');
+    args.push(updates.range);
+  }
+  if (updates.components !== undefined) {
+    fields.push('components = ?');
+    args.push(updates.components);
+  }
+  if (updates.duration !== undefined) {
+    fields.push('duration = ?');
+    args.push(updates.duration);
+  }
+  if (updates.description !== undefined) {
+    fields.push('description = ?');
+    args.push(updates.description);
+  }
+  if (updates.ritual !== undefined) {
+    fields.push('ritual = ?');
+    args.push(updates.ritual ? 1 : 0);
+  }
+  if (updates.concentration !== undefined) {
+    fields.push('concentration = ?');
+    args.push(updates.concentration ? 1 : 0);
+  }
+
+  if (fields.length === 0) {
+    return;
+  }
+
+  args.push(id);
+  const sql = `UPDATE spells SET ${fields.join(', ')} WHERE id = ?`;
+
+  await db.execute({
+    sql,
+    args,
+  });
+}

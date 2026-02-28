@@ -209,3 +209,46 @@ export function calculateModifier(score: number): number {
 export function rollInitiative(initiativeBonus: number): number {
   return Math.floor(Math.random() * 20) + 1 + initiativeBonus;
 }
+
+// Types pour le système de Flavor Text
+export type ActionType = 'CàC' | 'Distance' | 'Sort' | 'Zone';
+export type DamageType = 'Tranchant' | 'Contondant' | 'Perforant' | 'Feu' | 'Froid' | 'Foudre' | 'Acide' | 'Poison' | 'Nécrotique' | 'Radiant' | 'Psychique' | 'Force' | 'Tonnerre';
+export type ResultType = 'Échec' | 'Réussite' | 'Critique';
+
+export interface FlavorText {
+  id: string;
+  actionType: ActionType;
+  damageType: DamageType;
+  resultType: ResultType;
+  description: string;
+  createdAt?: Date;
+}
+
+// Types pour le système de Sorts
+export type SpellSchool = 
+  | 'Abjuration' 
+  | 'Conjuration' 
+  | 'Divination' 
+  | 'Enchantment' 
+  | 'Evocation' 
+  | 'Illusion' 
+  | 'Necromancy' 
+  | 'Transmutation';
+
+export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+export interface Spell {
+  id: string;
+  name: string;
+  level: SpellLevel;
+  school: SpellSchool;
+  spellLists: string; // Classes séparées par virgules
+  castingTime: string;
+  range: string;
+  components: string; // V, S, M
+  duration: string;
+  description: string;
+  ritual: boolean;
+  concentration: boolean;
+  createdAt?: Date;
+}
